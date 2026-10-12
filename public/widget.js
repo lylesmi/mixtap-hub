@@ -1,12 +1,5 @@
 (function () {
-  const DEFAULT_PLAYLIST = [
-    {
-      title: "Retro 96 Demo Tape",
-      provider: "youtube",
-      url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-      id: "dQw4w9WgXcQ"
-    }
-  ];
+  const DEFAULT_PLAYLIST = [];
 
   const state = {
     playlist: [],
@@ -228,6 +221,14 @@
           align-items: center;
           padding: 0 4px 4px;
         }
+        .r96-widget.r96-playing-media .r96-stage { grid-template-columns: 1fr; }
+        .r96-widget.r96-playing-media .r96-screen { height: 200px; width: 100%; }
+        .r96-widget.r96-playing-media .r96-screen iframe,
+        .r96-widget.r96-playing-media .r96-screen div { width: 100%; height: 200px; }
+        .r96-screen img { width: 100%; height: 100%; object-fit: cover; }
+        .r96-screen .r96-empty-art { display: grid; place-items: center; height: 100%; font-size: 22px; color: #52ff82; }
+        .r96-widget.r96-playing-media .r96-meta { padding: 3px 1px; }
+
         .r96-screen {
           overflow: hidden;
           height: 50px;
@@ -326,7 +327,7 @@
 
     document.body.appendChild(mount);
     state.playlist = (options.playlist || DEFAULT_PLAYLIST).map(normalizeTrack).filter((track) => track.id || track.url);
-    if (!state.playlist.length) state.playlist = DEFAULT_PLAYLIST;
+    // An empty published room must not display a demo video that is not in the queue.
     state.index = Math.min(Math.max(Number(options.startIndex || 0), 0), state.playlist.length - 1);
     state.room = options.room || "";
     state.hubUrl = options.hubUrl || "";
@@ -353,16 +354,50 @@
     const link = root.querySelector("[data-link]");
     const play = root.querySelector("[data-play]");
 
+    screen.innerHTML = "";
+    state.player = null;
+    state.spotifyFrame = null;
+    root.classList.toggle("r96-playing-media", Boolean(track && state.playing));
+    for (const action of ["data-play", "data-prev", "data-next", "data-shuffle", "data-pop"]) {
+      root.querySelector(`[${action}]`).disabled = !track;
+    }
+    if (!track) {
+      marquee.textContent = "No songs published to Retro 96";
+      provider.textContent = "EMPTY";
+      title.textContent = "Mixtap queue is empty";
+      author.textContent = "Publish songs from Mixtap Hub";
+      author.hidden = false;
+      link.href = state.hubUrl || "https://mixtap.ljas.ca";
+      link.textContent = "open Mixtap Hub";
+      play.textContent = "Play";
+      screen.innerHTML = '<span class="r96-empty-art" aria-hidden="true">♫</span>';
+      return;
+    }
     marquee.textContent = `${state.playing ? "Playing" : "Ready"}: ${trackLabel(track)}`;
     provider.textContent = track.provider;
     title.textContent = track.title;
     author.textContent = track.author || "";
     author.hidden = !track.author;
     link.href = track.url || "#";
+    link.textContent = "open original";
     play.textContent = state.playing ? "Pause" : "Play";
-    screen.innerHTML = "";
-    state.player = null;
-    state.spotifyFrame = null;
+
+    // Only create provider frames after Play. Tiny 88x50 iframe players can fail;
+    // active YouTube/Spotify players get a >=200x200 visible media surface.
+    if (!state.playing) {
+      const cover = track.thumbnail || (track.provider === "youtube" && track.id
+        ? `https://i.ytimg.com/vi/${encodeURIComponent(track.id)}/hqdefault.jpg` : "");
+      if (cover) {
+        const img = document.createElement("img");
+        img.src = cover;
+        img.alt = "Track thumbnail";
+        img.loading = "lazy";
+        screen.appendChild(img);
+      } else {
+        screen.innerHTML = '<span class="r96-empty-art" aria-hidden="true">♫</span>';
+      }
+      return;
+    }
 
     if (track.provider === "spotify") {
       const parts = String(track.id || "").split(":");
@@ -381,7 +416,10 @@
     holder.id = `r96-yt-${Date.now()}`;
     screen.appendChild(holder);
     loadYouTubeApi().then(() => {
+      if (!holder.isConnected || !state.playing || currentTrack()?.id !== track.id) return;
       state.player = new window.YT.Player(holder.id, {
+        width: "224",
+        height: "200",
         videoId: track.id,
         playerVars: {
           controls: 0,
@@ -396,6 +434,12 @@
           },
           onStateChange: function (event) {
             if (event.data === window.YT.PlayerState.ENDED) next(root);
+          },
+          onError: function () {
+            // Keep the track link usable if the owner disabled embedding.
+            screen.textContent = "This track cannot play embedded. Open the original link below.";
+            state.playing = false;
+            root.querySelector("[data-play]").textContent = "Play";
           }
         }
       });
@@ -403,13 +447,9 @@
   }
 
   function playPause(root) {
+    if (!currentTrack()) return;
     state.playing = !state.playing;
-    const track = currentTrack();
-    if (track.provider === "youtube" && state.player) {
-      if (state.playing) state.player.playVideo();
-      else state.player.pauseVideo();
-    }
-    renderLabels(root);
+    renderTrack(root);
   }
 
   function renderLabels(root) {
@@ -419,11 +459,13 @@
   }
 
   function prev(root) {
+    if (!state.playlist.length) return;
     state.index = (state.index - 1 + state.playlist.length) % state.playlist.length;
     renderTrack(root);
   }
 
   function next(root) {
+    if (!state.playlist.length) return;
     state.index = (state.index + 1) % state.playlist.length;
     renderTrack(root);
   }
@@ -522,7 +564,7 @@
   function applyRoomState(root, roomState) {
     if (!roomState || roomState.version === state.version) return;
     const incoming = Array.isArray(roomState.playlist) ? roomState.playlist.map(normalizeTrack).filter((track) => track.id || track.url) : [];
-    if (incoming.length) state.playlist = incoming;
+    state.playlist = incoming; // Explicitly reflect empty published rooms, too.
     state.index = Math.min(Math.max(Number(roomState.index || 0), 0), state.playlist.length - 1);
     state.playing = Boolean(roomState.playing);
     state.version = roomState.version || String(Date.now());
