@@ -343,6 +343,13 @@
       }
     }
 
+    .publish-feedback { padding: 11px 13px; border-radius: 7px; border: 1px solid #58729b; background: #101f39; line-height: 1.5; }
+    .publish-feedback[data-state="ok"] { border-color: #46ba8b; background: #143a32; color: #b4ffdd; }
+    .publish-feedback[data-state="error"] { border-color: #e78c8c; background: #47252b; color: #ffe2e2; }
+    .publish-feedback[data-state="pending"] { border-color: #7ca6e0; background: #1e314c; color: #e1eaff; }
+    .publish-counts { display: flex; flex-wrap: wrap; gap: 12px 22px; color: #cfdef5; font-size: 0.93rem; }
+    .publish-counts strong { color: #fff; }
+    button:disabled { opacity: .48; cursor: not-allowed; }
     @media (max-width: 620px) {
       .wrap {
         width: min(100% - 20px, 1180px);
@@ -371,7 +378,7 @@
         <h1>Retro 96 Mixtape Hub</h1>
         <p class="lede">Build a little floating player for your gaming site. Add YouTube or Spotify links, reorder the playlist, preview the widget, then copy the generated snippet into Retro 96.</p>
       </div>
-      <div class="badge">Self-hosted ljas.ca build</div>
+      <div class="badge">Self-hosted ljas.ca · v1.1.1</div>
     </header>
 
     <section class="panel" aria-label="Mixtape publishing access" style="margin-bottom:20px">
@@ -382,7 +389,16 @@
           <button id="usePublishingKey" class="btn primary" type="button">Unlock publishing</button>
           <button id="forgetPublishingKey" class="btn" type="button">Lock</button>
         </div>
-        <p class="note" id="publishingStatus" aria-live="polite">Public listening is available to everyone. Publishing requires your private key.</p>
+        <p class="note publish-feedback" id="publishingStatus" role="status" aria-live="polite" data-state="locked">Locked. Enter your private key to verify publishing access.</p>
+        <div class="publish-counts" aria-live="polite">
+          <span>In this browser: <strong id="localTrackCount">0</strong> songs</span>
+          <span>On Retro Room: <strong id="sharedTrackCount">checking...</strong> songs</span>
+        </div>
+        <div class="actions" style="margin-top:10px">
+          <button class="btn primary" type="button" id="publishQueue" disabled>Publish my queue to Retro Room</button>
+          <button class="btn" type="button" id="checkSharedQueue">Check shared queue</button>
+        </div>
+        <p class="note">Songs saved in this browser are private until you publish them to the shared room. Playing or pausing also updates the shared room after publishing is unlocked.</p>
       </div>
     </section>
     <div class="grid">
@@ -445,7 +461,7 @@
             <button class="btn" id="broadcastNext" type="button">Next</button>
             <button class="btn" id="broadcastPrev" type="button">Prev</button>
           </div>
-          <p class="note">Playlist edits auto-sync to the room. YouTube tracks can follow play/pause/timing; Spotify embeds show the same selected item but still need Spotify's own player rules.</p>
+          <p class="note">After you verify your key and publish the queue, later playlist edits auto-sync. YouTube tracks can follow play/pause/timing; Spotify embeds show the same selected item but still need Spotify's own player rules.</p>
         </div>
       </section>
 
@@ -510,6 +526,10 @@
       usePublishingKey: document.querySelector("#usePublishingKey"),
       forgetPublishingKey: document.querySelector("#forgetPublishingKey"),
       publishingStatus: document.querySelector("#publishingStatus"),
+      publishQueue: document.querySelector("#publishQueue"),
+      checkSharedQueue: document.querySelector("#checkSharedQueue"),
+      localTrackCount: document.querySelector("#localTrackCount"),
+      sharedTrackCount: document.querySelector("#sharedTrackCount"),
       copyJson: document.querySelector("#copyJson")
     };
 
@@ -520,16 +540,80 @@
       startedAt: 0
     };
     let adminPublishingKey = "";
-    els.usePublishingKey.addEventListener("click", () => {
-      adminPublishingKey = els.publishingKey.value.trim();
-      els.publishingKey.value = "";
-      els.publishingStatus.textContent = adminPublishingKey ? "Key loaded for this tab. Publish changes to check it." : "Enter a publishing key.";
+    let sharedTrackCount = null;
+    function publishingFeedback(message, state = "locked") {
+      els.publishingStatus.textContent = message;
+      els.publishingStatus.dataset.state = state;
+    }
+    function updatePublishingCounts() {
+      els.localTrackCount.textContent = String(playlist.length);
+      els.sharedTrackCount.textContent = sharedTrackCount === null ? "?" : String(sharedTrackCount);
+      els.publishQueue.disabled = !adminPublishingKey || !playlist.length;
+      els.publishQueue.textContent = `Publish ${playlist.length} song${playlist.length === 1 ? "" : "s"} to Retro Room`;
+    }
+    async function checkSharedQueue() {
+      try {
+        const response = await fetch(roomEndpoint(), { cache: "no-store" });
+        if (!response.ok) throw new Error(`Shared room returned HTTP ${response.status}`);
+        const data = await response.json();
+        sharedTrackCount = Array.isArray(data.playlist) ? data.playlist.length : 0;
+        updatePublishingCounts();
+        if (!adminPublishingKey && playlist.length && !sharedTrackCount) {
+          publishingFeedback(`${playlist.length} song(s) saved in this browser, but none published to Retro Room. Unlock, then click Publish queue.`, "locked");
+        }
+        return data;
+      } catch (_) {
+        sharedTrackCount = null;
+        updatePublishingCounts();
+        publishingFeedback("Cannot contact the shared room. Check Mixtap's server connection.", "error");
+        return null;
+      }
+    }
+    async function unlockPublishing() {
+      const proposed = els.publishingKey.value.trim();
+      if (!proposed) {
+        publishingFeedback("Enter your publishing key first.", "error");
+        return;
+      }
+      els.usePublishingKey.disabled = true;
+      publishingFeedback("Checking publishing key with Mixtap server...", "pending");
+      try {
+        const response = await fetch("/api/publishing/verify", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${proposed}` },
+          cache: "no-store"
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.verified) {
+          adminPublishingKey = "";
+          updatePublishingCounts();
+          throw new Error(data.error || `Publishing verification failed (HTTP ${response.status}).`);
+        }
+        adminPublishingKey = proposed;
+        els.publishingKey.value = "";
+        updatePublishingCounts();
+        publishingFeedback(`✓ Publishing unlocked and verified. ${playlist.length} browser song(s), ${sharedTrackCount === null ? "unknown" : sharedTrackCount} shared. Click Publish queue to sync.`, "ok");
+      } catch (error) {
+        publishingFeedback(error.message || "Couldn't verify the key. Check your connection.", "error");
+      } finally {
+        els.usePublishingKey.disabled = false;
+      }
+    }
+    els.usePublishingKey.addEventListener("click", unlockPublishing);
+    els.publishingKey.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") unlockPublishing();
     });
     els.forgetPublishingKey.addEventListener("click", () => {
       adminPublishingKey = "";
       els.publishingKey.value = "";
-      els.publishingStatus.textContent = "Publishing locked.";
+      updatePublishingCounts();
+      publishingFeedback("Publishing locked. Your local songs are unchanged.", "locked");
     });
+    els.checkSharedQueue.addEventListener("click", async () => {
+      const data = await checkSharedQueue();
+      if (data) publishingFeedback(`Shared server room contains ${sharedTrackCount} song(s). Your browser has ${playlist.length}.`, adminPublishingKey ? "ok" : "locked");
+    });
+    els.publishQueue.addEventListener("click", () => broadcast({ playing: false, startedAt: 0 }, { explicit: true }));
     let autoSyncTimer = 0;
     let metadataRefreshRunning = false;
 
@@ -655,6 +739,7 @@
 
     function savePlaylist() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(playlist));
+      updatePublishingCounts();
     }
 
     function setStatus(message) {
@@ -776,19 +861,27 @@
 
     function scheduleRoomSync() {
       window.clearTimeout(autoSyncTimer);
+      // Local edits are never pushed until the owner verifies the publishing key.
+      if (!adminPublishingKey) return;
       autoSyncTimer = window.setTimeout(() => {
+        if (!playlist.length) return; // Emptying a room must be an explicit action in a future update.
         broadcast({
-          playing: playlist.length ? streamState.playing : false,
-          startedAt: streamState.playing && playlist.length ? streamState.startedAt || Date.now() : 0
+          playing: streamState.playing,
+          startedAt: streamState.playing ? streamState.startedAt || Date.now() : 0
         }, { silent: true });
       }, 450);
     }
 
     async function broadcast(nextState, options = {}) {
-      if (!playlist.length && !options.silent) {
-        setStatus("Add at least one track before broadcasting.");
-        return;
+      if (!adminPublishingKey) {
+        publishingFeedback("Publishing locked. Enter your key and click Unlock publishing.", "error");
+        return false;
       }
+      if (!playlist.length) {
+        publishingFeedback("Your browser playlist is empty. Add a song before publishing.", "error");
+        return false;
+      }
+      publishingFeedback(options.explicit ? "Publishing your queue to Retro Room..." : "Syncing playlist changes...", "pending");
 
       streamState = {
         ...streamState,
@@ -816,19 +909,24 @@
           headers: { "Content-Type": "application/json", ...(adminPublishingKey ? { "Authorization": `Bearer ${adminPublishingKey}` } : {}) },
           body: JSON.stringify(payload)
         });
-        if (response.status === 401 || response.status === 503) {
-          els.publishingStatus.textContent = "Publishing denied. Unlock with the key configured in LaunchDock.";
-          throw new Error("Publishing key required.");
+        const outcome = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          if (response.status === 401) {
+            adminPublishingKey = "";
+            updatePublishingCounts();
+          }
+          throw new Error(outcome.error || `Publish failed with HTTP ${response.status}.`);
         }
-        if (!response.ok) throw new Error("Room API unavailable.");
-        els.publishingStatus.textContent = "Playlist saved to the shared server room.";
-        if (!options.silent) {
-          setStatus(streamState.playing ? "Broadcasting to the Retro 96 room." : "Retro 96 room paused.");
+        const confirmed = await checkSharedQueue();
+        if (!confirmed || confirmed.version !== payload.version || sharedTrackCount !== playlist.length) {
+          throw new Error("The server did not confirm your latest queue. Please check before retrying.");
         }
-      } catch (_) {
-        if (!options.silent) {
-          setStatus("Could not publish. Check your publishing key and the shared room server.");
-        }
+        publishingFeedback(`✓ Published ${sharedTrackCount} song(s) to room ${els.roomId.value.trim() || "retro96"}. Retro Room will sync automatically.`, "ok");
+        if (!options.silent) setStatus(streamState.playing ? "Shared room playing." : "Shared room paused and saved.");
+        return true;
+      } catch (error) {
+        publishingFeedback(`✕ ${error.message || "Could not publish. Check your key or network connection."}`, "error");
+        return false;
       }
     }
 
@@ -867,9 +965,13 @@
       saveAndRender("Playlist cleared.");
     });
     els.copyCode.addEventListener("click", () => copy(els.embedCode.value, "Embed code copied."));
-    els.roomId.addEventListener("input", () => {
+    els.roomId.addEventListener("change", () => {
+      window.clearTimeout(autoSyncTimer);
       renderEmbedCode();
-      scheduleRoomSync();
+      sharedTrackCount = null;
+      updatePublishingCounts();
+      checkSharedQueue();
+      publishingFeedback("Room changed. Review the shared queue before publishing to this room.", adminPublishingKey ? "pending" : "locked");
     });
     els.broadcastPlay.addEventListener("click", () => broadcast({ playing: true, startedAt: Date.now() }));
     els.broadcastPause.addEventListener("click", () => broadcast({ playing: false, startedAt: 0 }));
@@ -901,15 +1003,16 @@
       URL.revokeObjectURL(link.href);
     });
 
-    if (!playlist.length) {
-      playlist = demoTracks.map(normalizeTrack);
-      savePlaylist();
-    }
-    refreshPlaylistMetadata({ silent: true });
+    // Never substitute demo music for an empty personal or shared queue.
+    if (playlist.length) refreshPlaylistMetadata({ silent: true });
   </script>
   <script src="widget.js" data-retro96-player data-skip-auto="true" data-playlist="[]"></script>
   <script>
-    document.addEventListener("DOMContentLoaded", render);
+    document.addEventListener("DOMContentLoaded", () => {
+      render();
+      updatePublishingCounts();
+      checkSharedQueue();
+    });
   </script>
 </body>
 </html>
