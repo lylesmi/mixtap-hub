@@ -1,0 +1,22 @@
+{
+  "app": "Mixtap Hub",
+  "version": "1.1.0",
+  "host": "mixtap.ljas.ca",
+  "app_slug": "mixtap",
+  "container_port": 8787,
+  "storage_path": "/var/data",
+  "persistent_volume": "launchdock-mixtap-data",
+  "file_sha256": {
+    "README.md": "26695eb9cff58627a7ceab6a40b5b62eb38b83ceb974a163fb9ba5673ab3d952",
+    "LAUNCHDOCK-SETUP.md": "bf484ac7bc9282c91188a7db24e9694796858c6634c533fb4c2f6fbb3f5457c6",
+    "Dockerfile": "dedd5b4d2a3cf873755f9e7b8d76cfc4a47cb033a9620b51a43ccdf9ad460165",
+    ".dockerignore": "78b6d8195c9f589c2aa7cec387196988db6f0b905ce5684b39d1f56aacd92954",
+    "server.mjs": "8bf7c0410b318eeb04f2f92a9f74c722e48a90e27b0b7abff306fa88d9cad161",
+    "package.json": "0c15ee88cfb0c0722a48d03a4917176304b92a593519e73d9ef963be04ac887a",
+    "public/index.html": "f65235b76b1d463899c84fa821efb94a72b923d01ef27e9042fef309f08b0099",
+    "public/widget.js": "edab8ea8a7a4cdebfac66e256baa1886fbf67b421ef9e1f466e045385031ec90",
+    "EMBED-CODE.html": "ee74f22c19a93210a642d632d2bad9f4b60fa08c3b51a9da292fd888d5c726ca",
+    "test-hosted.mjs": "b4803abc94395f00d7ebcbc73bed98acd4e4e0f79a8fda42b3a16d071619bbf2",
+    "data/.gitkeep": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  }
+}
