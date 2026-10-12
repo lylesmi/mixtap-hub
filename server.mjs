@@ -8,6 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const publicRoot = join(__dirname, "public");
 const dataDir = process.env.MIXTAP_DATA_DIR || process.env.DATA_DIR || join(__dirname, "data");
 const adminToken = process.env.MIXTAP_ADMIN_TOKEN || "";
+const APP_VERSION = "1.1.1";
 const publicOrigin = process.env.MIXTAP_PUBLIC_ORIGIN || "https://mixtap.ljas.ca";
 const dataFile = join(dataDir, "rooms.json");
 const port = Number(process.env.PORT || 8787);
@@ -72,16 +73,22 @@ async function loadRooms() {
   }
 }
 
-function saveRooms() {
-  writeQueue = writeQueue.then(async () => {
+function saveRoom(room, payload) {
+  // Queue writes and publish a room to readers only after the disk write succeeds.
+  // The caller must see a failed write, not a misleading HTTP 200.
+  const operation = writeQueue.then(async () => {
+    const nextRooms = { ...rooms, [room]: payload };
     await mkdir(dataDir, { recursive: true });
     const tempFile = `${dataFile}.tmp`;
-    await writeFile(tempFile, JSON.stringify(rooms, null, 2));
+    await writeFile(tempFile, JSON.stringify(nextRooms, null, 2));
     await rename(tempFile, dataFile);
-  }).catch((error) => {
+    rooms = nextRooms;
+  });
+  // A failure must not permanently prevent subsequent writes from retrying.
+  writeQueue = operation.catch((error) => {
     console.error("Could not save data/rooms.json:", error);
   });
-  return writeQueue;
+  return operation;
 }
 
 function readBody(req) {
@@ -248,6 +255,36 @@ async function handleMetadata(req, res, url) {
   return true;
 }
 
+function verifyAdminRequest(req, res) {
+  if (!adminToken) {
+    json(res, 503, { ok: false, error: "Publishing is not configured. Add MIXTAP_ADMIN_TOKEN to Mixtap in LaunchDock." });
+    return false;
+  }
+  const origin = req.headers.origin || "";
+  if (origin && origin !== publicOrigin) {
+    json(res, 403, { ok: false, error: "This publishing request came from an unapproved website." });
+    return false;
+  }
+  const bearer = String(req.headers.authorization || "");
+  const presented = bearer.startsWith("Bearer ") ? bearer.slice(7) : "";
+  const expected = Buffer.from(adminToken);
+  const actual = Buffer.from(presented);
+  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
+    json(res, 401, { ok: false, error: "Incorrect publishing key. Check the saved MIXTAP_ADMIN_TOKEN." });
+    return false;
+  }
+  return true;
+}
+
+function handleVerifyPublishing(req, res) {
+  if (req.method !== "POST") {
+    json(res, 405, { ok: false, error: "Method not allowed" });
+    return;
+  }
+  if (!verifyAdminRequest(req, res)) return;
+  json(res, 200, { ok: true, verified: true });
+}
+
 async function handleRoom(req, res, url) {
   const room = safeRoom(url.pathname);
   if (!room) {
@@ -263,16 +300,7 @@ async function handleRoom(req, res, url) {
     return true;
   }
   if (req.method === "PUT") {
-    if (!adminToken) return json(res, 503, { error: "Publishing disabled: configure MIXTAP_ADMIN_TOKEN in LaunchDock" });
-    const origin = req.headers.origin || "";
-    if (origin && origin !== publicOrigin) return json(res, 403, { error: "Wrong origin" });
-    const bearer = String(req.headers.authorization || "");
-    const presented = bearer.startsWith("Bearer ") ? bearer.slice(7) : "";
-    const expected = Buffer.from(adminToken);
-    const actual = Buffer.from(presented);
-    if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
-      return json(res, 401, { error: "Administrator key required" });
-    }
+    if (!verifyAdminRequest(req, res)) return;
     let incoming;
     try { incoming = JSON.parse(await readBody(req) || "{}"); }
     catch { return json(res, 400, { error: "Invalid JSON" }); }
@@ -292,8 +320,12 @@ async function handleRoom(req, res, url) {
       updatedAt: Date.now(),
       version: incoming.version || String(Date.now())
     };
-    rooms[room] = payload;
-    await saveRooms();
+    try {
+      await saveRoom(room, payload);
+    } catch (_) {
+      json(res, 503, { ok: false, error: "Could not save the shared room. No playlist changes were published. Check Mixtap storage." });
+      return true;
+    }
     json(res, 200, payload);
     return true;
   }
@@ -328,7 +360,11 @@ createServer(async (req, res) => {
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
   try {
     if (url.pathname === "/healthz") {
-      json(res, 200, { ok: true, service: "retro96-mixtap", version: "1.1.0", storageConfigured: Boolean(process.env.MIXTAP_DATA_DIR || process.env.DATA_DIR) });
+      json(res, 200, { ok: true, service: "retro96-mixtap", version: APP_VERSION, storageConfigured: Boolean(process.env.MIXTAP_DATA_DIR || process.env.DATA_DIR) });
+      return;
+    }
+    if (url.pathname === "/api/publishing/verify") {
+      handleVerifyPublishing(req, res);
       return;
     }
     if (url.pathname === "/api/metadata") {
