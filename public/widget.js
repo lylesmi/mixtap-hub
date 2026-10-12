@@ -14,7 +14,16 @@
     sync: false,
     version: "",
     pollTimer: 0,
-    desiredSeek: 0
+    desiredSeek: 0,
+    mode: "personal",
+    listening: true,
+    minimized: false,
+    musicOnly: false,
+    radioState: null,
+    radioVersion: "",
+    radioEnded: false,
+    localStartedAt: 0,
+    dockedAt: 0
   };
 
   function parseJson(value, fallback) {
@@ -158,12 +167,31 @@
           display: inline-block;
           min-width: 100%;
           padding: 4px 0;
-          animation: r96-scroll 15s linear infinite;
+          animation: r96-scroll 42s linear infinite;
         }
         @keyframes r96-scroll {
-          from { transform: translateX(100%); }
+          from { transform: translateX(0); }
           to { transform: translateX(-100%); }
         }
+        .r96-modebar {
+          display: grid;
+          grid-template-columns: 1fr 1fr 1.2fr;
+          gap: 3px;
+          margin: 0 4px 3px;
+        }
+        .r96-modebar .r96-button { font-size: 10px; min-height: 22px; }
+        .r96-modebar [aria-pressed="true"] {
+          background: #000080;
+          color: white;
+          border-color: #202060;
+          box-shadow: inset 1px 1px #080840;
+        }
+        .r96-status {
+          margin: 0 5px 3px;
+          color: #343434;
+          font: 10px/1.3 "MS Sans Serif", Tahoma, sans-serif;
+        }
+        .r96-marquee:hover span { animation-play-state: paused; }
         .r96-controls {
           display: grid;
           grid-template-columns: 34px 52px 34px 38px 38px;
@@ -256,36 +284,69 @@
           color: #000080;
           font-size: 10px;
         }
-        .r96-widget.r96-compact {
-          width: 210px;
+        .r96-widget.r96-compact { width: 238px; }
+        .r96-widget.r96-compact:not(.r96-playing-media) .r96-stage { display: none; }
+        .r96-widget.r96-compact .r96-extra { display: none; }
+        .r96-widget.r96-compact .r96-controls { grid-template-columns: 34px 52px 34px; }
+        .r96-widget.r96-music-only .r96-meta { display: none; }
+        .r96-widget.r96-music-only:not(.r96-playing-media) .r96-stage { display: none; }
+        /* YouTube playback must always retain a visible >=200x200 frame. */
+        .r96-widget.r96-playing-media .r96-stage { display: grid; }
+        .r96-widget.r96-playing-media .r96-screen iframe { min-width: 200px; min-height: 200px; }
+        /* Spotify is an audio embed and offers its own compact interface. */
+        .r96-widget.r96-music-only.r96-spotify-media .r96-screen,
+        .r96-widget.r96-music-only.r96-spotify-media .r96-screen iframe {
+          height: 84px; min-height: 84px;
         }
-        .r96-widget.r96-compact .r96-stage {
+        .r96-dock-button {
           display: none;
+          width: 37px;
+          height: 37px;
+          border: 2px outset #fff;
+          border-right-color: #555;
+          border-bottom-color: #555;
+          border-radius: 0;
+          background: #c0c0c0;
+          color: #000080;
+          font-size: 20px;
+          cursor: pointer;
+          box-shadow: 3px 3px 0 rgba(0,0,0,.5);
         }
-        .r96-widget.r96-compact .r96-controls {
-          grid-template-columns: 34px 52px 34px;
+        .r96-widget.r96-docked {
+          position: fixed !important;
+          top: 10px !important;
+          left: 10px !important;
+          right: auto !important;
+          bottom: auto !important;
+          width: 37px !important;
         }
-        .r96-widget.r96-compact .r96-extra {
-          display: none;
-        }
+        .r96-widget.r96-docked .r96-shell { display: none; }
+        .r96-widget.r96-docked .r96-dock-button { display: block; }
         @media (max-width: 560px) {
           .r96-widget {
             left: 10px;
-            right: 10px;
-            top: auto;
-            bottom: 12px;
-            width: auto;
+            top: 12px;
+            right: auto;
+            bottom: auto;
+            max-width: calc(100vw - 20px);
           }
         }
       </style>
+      <button class="r96-dock-button" type="button" data-restore aria-label="Restore Retro 96 Radio" title="Restore Retro 96 Radio">♫</button>
       <div class="r96-shell">
         <div class="r96-topbar" data-drag>
           <span class="r96-grip" aria-hidden="true"></span>
           <span>Retro 96 Radio</span>
           <button class="r96-mini" type="button" data-minimize aria-label="Minimize player">_</button>
-          <button class="r96-mini" type="button" data-close aria-label="Close player">x</button>
+          <button class="r96-mini" type="button" data-close aria-label="Minimize to top-left music icon" title="Minimize to music icon">x</button>
         </div>
         <div class="r96-marquee"><span data-marquee>Loading mixtape...</span></div>
+        <div class="r96-modebar" role="group" aria-label="Listening modes">
+          <button class="r96-button" type="button" data-radio aria-pressed="false" title="Follow the Mixtap broadcast">Radio</button>
+          <button class="r96-button" type="button" data-personal aria-pressed="false" title="Control your own playback independently">Personal</button>
+          <button class="r96-button" type="button" data-music-only aria-pressed="false" title="Compact music layout; YouTube video stays visible while playing">Music only</button>
+        </div>
+        <div class="r96-status" data-status aria-live="polite"></div>
         <div class="r96-controls">
           <button class="r96-button" type="button" data-prev aria-label="Previous track">&lt;&lt;</button>
           <button class="r96-button" type="button" data-play aria-label="Play or pause">Play</button>
@@ -312,6 +373,14 @@
     state.room = options.room || "";
     state.hubUrl = options.hubUrl || "";
     state.sync = Boolean(options.sync && state.room && state.hubUrl);
+    state.mode = state.sync && readModePreference() !== "personal" ? "radio" : "personal";
+    state.listening = true;
+    state.minimized = false;
+    state.localStartedAt = 0;
+    state.radioState = null;
+    state.radioVersion = "";
+    // The radio controls require a connected hub, not a local-only preview.
+    mount.querySelector("[data-radio]").disabled = !state.sync;
 
     bindControls(mount);
     renderTrack(mount);
@@ -320,8 +389,70 @@
     return mount;
   }
 
+  function readModePreference() {
+    try { return window.localStorage.getItem("retro96-listening-mode"); } catch (_) { return "radio"; }
+  }
+
+  function persistMode() {
+    try { window.localStorage.setItem("retro96-listening-mode", state.mode); } catch (_) { /* Private browsing */ }
+  }
+
   function currentTrack() {
     return state.playlist[state.index] || state.playlist[0];
+  }
+
+  function broadcastPlaying() {
+    return state.mode === "radio" && state.sync;
+  }
+
+  function canRenderMedia() {
+    return Boolean(currentTrack() && state.playing && !state.minimized &&
+      (!broadcastPlaying() || (state.listening && !state.radioEnded)));
+  }
+
+  function currentPersonalSeek() {
+    return Math.max(0, state.desiredSeek + (state.playing && state.localStartedAt
+      ? (Date.now() - state.localStartedAt) / 1000 : 0));
+  }
+
+  function updateControls(root) {
+    const track = currentTrack();
+    const radio = broadcastPlaying();
+    const active = canRenderMedia();
+    root.classList.toggle("r96-playing-media", active);
+    root.classList.toggle("r96-spotify-media", active && track?.provider === "spotify");
+    root.classList.toggle("r96-music-only", state.musicOnly);
+    root.classList.toggle("r96-docked", state.minimized);
+    root.querySelector("[data-radio]").setAttribute("aria-pressed", String(radio));
+    root.querySelector("[data-personal]").setAttribute("aria-pressed", String(!radio));
+    root.querySelector("[data-music-only]").setAttribute("aria-pressed", String(state.musicOnly));
+    root.querySelector("[data-music-only]").textContent = state.musicOnly ? "Music: On" : "Music only";
+    root.querySelector("[data-prev]").disabled = !track || radio;
+    root.querySelector("[data-next]").disabled = !track || radio;
+    root.querySelector("[data-shuffle]").disabled = !track || radio;
+    root.querySelector("[data-pop]").disabled = !track;
+    root.querySelector("[data-play]").disabled = !track || (radio && !state.playing);
+    root.querySelector("[data-play]").textContent = radio
+      ? (!state.playing ? "Waiting" : state.listening ? "Mute" : "Listen")
+      : state.playing ? "Pause" : "Play";
+    root.querySelector("[data-status]").textContent = radio
+      ? (!state.playing ? "RADIO · Waiting for DJ" : !state.listening ? "RADIO · Muted here only" :
+          state.radioEnded ? "RADIO · Waiting for next song" : "RADIO · Following Mixtap")
+      : "PERSONAL · Your controls only";
+    root.querySelector("[data-restore]").title = state.minimized
+      ? "Restore Retro 96 Radio (embedded YouTube playback pauses while minimized)"
+      : "Restore Retro 96 Radio";
+    root.querySelector("[data-restore]").setAttribute("aria-label", root.querySelector("[data-restore]").title);
+  }
+
+  function clearProviderPlayer(root) {
+    if (state.ytMessageHandler) {
+      window.removeEventListener("message", state.ytMessageHandler);
+      state.ytMessageHandler = null;
+    }
+    root.querySelector("[data-screen]").replaceChildren();
+    state.player = null;
+    state.spotifyFrame = null;
   }
 
   function renderTrack(root) {
@@ -332,20 +463,9 @@
     const title = root.querySelector("[data-title]");
     const author = root.querySelector("[data-author]");
     const link = root.querySelector("[data-link]");
-    const play = root.querySelector("[data-play]");
+    clearProviderPlayer(root);
+    updateControls(root);
 
-    // A previous YouTube frame may have registered for postMessage events.
-    if (state.ytMessageHandler) {
-      window.removeEventListener("message", state.ytMessageHandler);
-      state.ytMessageHandler = null;
-    }
-    screen.innerHTML = "";
-    state.player = null;
-    state.spotifyFrame = null;
-    root.classList.toggle("r96-playing-media", Boolean(track && state.playing));
-    for (const action of ["data-play", "data-prev", "data-next", "data-shuffle", "data-pop"]) {
-      root.querySelector(`[${action}]`).disabled = !track;
-    }
     if (!track) {
       marquee.textContent = "No songs published to Retro 96";
       provider.textContent = "EMPTY";
@@ -354,22 +474,19 @@
       author.hidden = false;
       link.href = state.hubUrl || "https://mixtap.ljas.ca";
       link.textContent = "open Mixtap Hub";
-      play.textContent = "Play";
       screen.innerHTML = '<span class="r96-empty-art" aria-hidden="true">♫</span>';
       return;
     }
-    marquee.textContent = `${state.playing ? "Playing" : "Ready"}: ${trackLabel(track)}`;
+
+    marquee.textContent = `${canRenderMedia() ? "Playing" : "Ready"}: ${trackLabel(track)}`;
     provider.textContent = track.provider;
     title.textContent = track.title;
     author.textContent = track.author || "";
     author.hidden = !track.author;
     link.href = track.url || "#";
     link.textContent = "open original";
-    play.textContent = state.playing ? "Pause" : "Play";
 
-    // Only create provider frames after Play. Tiny 88x50 iframe players can fail;
-    // active YouTube/Spotify players get a >=200x200 visible media surface.
-    if (!state.playing) {
+    if (!canRenderMedia()) {
       const cover = track.thumbnail || (track.provider === "youtube" && track.id
         ? `https://i.ytimg.com/vi/${encodeURIComponent(track.id)}/hqdefault.jpg` : "");
       if (cover) {
@@ -389,8 +506,6 @@
       const iframe = document.createElement("iframe");
       iframe.allow = "autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture";
       iframe.referrerPolicy = "strict-origin-when-cross-origin";
-      // Retro Room keeps cross-origin isolation for its emulator. An isolated
-      // document can only show third-party frames via credentialless iframes.
       if (window.crossOriginIsolated) iframe.setAttribute("credentialless", "");
       iframe.loading = "eager";
       iframe.src = parts.length === 2 ? `https://open.spotify.com/embed/${parts[0]}/${parts[1]}` : track.url;
@@ -401,9 +516,8 @@
       return;
     }
 
-    // Avoid www.youtube.com/iframe_api here. That third-party script can be
-    // blocked by Retro Room's COEP require-corp header. Use YouTube's normal
-    // embed URL and its optional postMessage player protocol instead.
+    // Use the direct embed (no blocked iframe_api script under Retro Room COEP).
+    // YouTube requires a visible >=200x200 video player during playback.
     const iframe = document.createElement("iframe");
     iframe.id = `r96-yt-${Date.now()}`;
     iframe.title = `YouTube: ${track.title}`;
@@ -414,32 +528,29 @@
     iframe.allowFullscreen = true;
     iframe.loading = "eager";
     iframe.referrerPolicy = "strict-origin-when-cross-origin";
-    // On Chromium this lets a COEP-isolated Retro Room embed YouTube while
-    // keeping SharedArrayBuffer and game emulation security enabled.
     if (window.crossOriginIsolated) iframe.setAttribute("credentialless", "");
-    const validId = /^[a-zA-Z0-9_-]{11}$/.test(String(track.id || ""));
-    if (!validId) {
+    if (!/^[a-zA-Z0-9_-]{11}$/.test(String(track.id || ""))) {
       screen.textContent = "This YouTube link could not be embedded. Open the original link below.";
-      state.playing = false;
-      root.querySelector("[data-play]").textContent = "Play";
+      if (!broadcastPlaying()) state.playing = false;
+      else state.listening = false;
+      updateControls(root);
       return;
     }
     const embed = new URL(`https://www.youtube-nocookie.com/embed/${track.id}`);
     embed.searchParams.set("autoplay", "1");
-    embed.searchParams.set("controls", "1"); // Fallback if browser blocks audible autoplay.
+    embed.searchParams.set("controls", "1");
     embed.searchParams.set("playsinline", "1");
     embed.searchParams.set("enablejsapi", "1");
     if (window.location.origin && window.location.origin !== "null") {
       embed.searchParams.set("origin", window.location.origin);
     }
-    const seek = Math.max(0, Math.floor(Number(state.desiredSeek) || 0));
-    if (seek) embed.searchParams.set("start", String(seek));
+    const seek = broadcastPlaying() && state.radioState
+      ? calculateSeek(state.radioState) : state.desiredSeek;
+    if (seek > 0) embed.searchParams.set("start", String(Math.floor(seek)));
     iframe.src = embed.toString();
     screen.appendChild(iframe);
     state.player = iframe;
 
-    // The iframe still has its native YouTube Play button. The listener adds
-    // auto-next and readable errors when YouTube sends an API event.
     state.ytMessageHandler = function (event) {
       if (event.source !== iframe.contentWindow ||
           !["https://www.youtube.com", "https://www.youtube-nocookie.com"].includes(event.origin)) return;
@@ -448,22 +559,27 @@
         try { payload = JSON.parse(payload); } catch (_) { return; }
       }
       if (!payload || typeof payload !== "object") return;
-      if (payload.event === "onStateChange" && Number(payload.info) === 0) next(root);
+      if (payload.event === "onStateChange" && Number(payload.info) === 0) {
+        if (broadcastPlaying()) {
+          state.radioEnded = true;
+          updateControls(root);
+        } else next(root);
+      }
       if (payload.event === "onError") {
         const code = Number(payload.info);
         let reason = "YouTube couldn't play this video inside Retro Room.";
         if (code === 101 || code === 150) reason = "The video owner has disabled embedded playback.";
         if (code === 153) reason = "YouTube rejected the embedded player identification.";
+        clearProviderPlayer(root);
         screen.textContent = `${reason} Open the original link below.`;
-        state.playing = false;
-        root.querySelector("[data-play]").textContent = "Play";
-        state.player = null;
+        if (broadcastPlaying()) state.listening = false;
+        else state.playing = false;
+        updateControls(root);
       }
     };
     window.addEventListener("message", state.ytMessageHandler);
     iframe.addEventListener("load", () => {
       if (!iframe.isConnected) return;
-      // Register for state/error notifications without downloading iframe_api.
       iframe.contentWindow?.postMessage(JSON.stringify({ event: "listening", id: iframe.id }),
         "https://www.youtube-nocookie.com");
     });
@@ -471,36 +587,91 @@
 
   function playPause(root) {
     if (!currentTrack()) return;
-    state.playing = !state.playing;
+    if (broadcastPlaying()) {
+      if (!state.playing) return;
+      state.listening = !state.listening;
+      state.radioEnded = false;
+    } else {
+      if (state.playing) {
+        state.desiredSeek = currentPersonalSeek();
+        state.localStartedAt = 0;
+      } else state.localStartedAt = Date.now();
+      state.playing = !state.playing;
+    }
     renderTrack(root);
   }
 
   function renderLabels(root) {
-    const track = currentTrack();
-    root.querySelector("[data-play]").textContent = state.playing ? "Pause" : "Play";
-    root.querySelector("[data-marquee]").textContent = `${state.playing ? "Playing" : "Ready"}: ${trackLabel(track)}`;
+    updateControls(root);
+    root.querySelector("[data-marquee]").textContent = `${canRenderMedia() ? "Playing" : "Ready"}: ${trackLabel(currentTrack())}`;
+  }
+
+  function choosePersonalTrack(root, index) {
+    if (broadcastPlaying() || !state.playlist.length) return;
+    state.index = index;
+    state.desiredSeek = 0;
+    state.localStartedAt = state.playing ? Date.now() : 0;
+    renderTrack(root);
   }
 
   function prev(root) {
     if (!state.playlist.length) return;
-    state.index = (state.index - 1 + state.playlist.length) % state.playlist.length;
-    renderTrack(root);
+    choosePersonalTrack(root, (state.index - 1 + state.playlist.length) % state.playlist.length);
   }
 
   function next(root) {
     if (!state.playlist.length) return;
-    state.index = (state.index + 1) % state.playlist.length;
-    renderTrack(root);
+    choosePersonalTrack(root, (state.index + 1) % state.playlist.length);
   }
 
   function shuffle(root) {
-    if (state.playlist.length < 2) return;
+    if (broadcastPlaying() || state.playlist.length < 2) return;
     let nextIndex = state.index;
-    while (nextIndex === state.index) {
-      nextIndex = Math.floor(Math.random() * state.playlist.length);
+    while (nextIndex === state.index) nextIndex = Math.floor(Math.random() * state.playlist.length);
+    choosePersonalTrack(root, nextIndex);
+  }
+
+  function setListeningMode(root, mode) {
+    if (mode === "radio" && !state.sync) return;
+    if (state.mode === mode) return;
+    if (mode === "personal") {
+      state.desiredSeek = broadcastPlaying() && state.radioState
+        ? calculateSeek(state.radioState) : state.desiredSeek;
+      state.localStartedAt = state.playing ? Date.now() : 0;
     }
-    state.index = nextIndex;
+    state.mode = mode;
+    state.radioEnded = false;
+    persistMode();
+    if (mode === "radio") {
+      state.listening = true;
+      if (state.radioState) {
+        applyRadioSnapshot(root);
+        return;
+      }
+      fetchRoom(root);
+    }
     renderTrack(root);
+  }
+
+  function toggleDock(root, shouldDock) {
+    if (shouldDock === state.minimized) return;
+    if (shouldDock) {
+      state.savedPosition = { left: root.style.left, top: root.style.top,
+        right: root.style.right, bottom: root.style.bottom };
+      // Hidden YouTube video playback isn't permitted; removing the iframe
+      // pauses local audio. Radio remains subscribed for future updates.
+      if (!broadcastPlaying() && state.playing) {
+        state.desiredSeek = currentPersonalSeek();
+        state.playing = false;
+        state.localStartedAt = 0;
+      }
+    }
+    state.minimized = shouldDock;
+    if (!shouldDock && state.savedPosition) {
+      Object.assign(root.style, state.savedPosition);
+    }
+    renderTrack(root);
+    if (!shouldDock) root.querySelector("[data-close]").focus();
   }
 
   function bindControls(root) {
@@ -508,12 +679,22 @@
     root.querySelector("[data-prev]").addEventListener("click", () => prev(root));
     root.querySelector("[data-next]").addEventListener("click", () => next(root));
     root.querySelector("[data-shuffle]").addEventListener("click", () => shuffle(root));
-    root.querySelector("[data-pop]").addEventListener("click", () => window.open(currentTrack().url, "_blank", "noopener"));
+    root.querySelector("[data-pop]").addEventListener("click", () => {
+      if (currentTrack()?.url) window.open(currentTrack().url, "_blank", "noopener");
+    });
+    root.querySelector("[data-radio]").addEventListener("click", () => setListeningMode(root, "radio"));
+    root.querySelector("[data-personal]").addEventListener("click", () => setListeningMode(root, "personal"));
+    root.querySelector("[data-music-only]").addEventListener("click", () => {
+      state.musicOnly = !state.musicOnly;
+      // Layout-only: never unload a playing provider iframe.
+      updateControls(root);
+    });
     root.querySelector("[data-minimize]").addEventListener("click", () => {
       state.compact = !state.compact;
       root.classList.toggle("r96-compact", state.compact);
     });
-    root.querySelector("[data-close]").addEventListener("click", () => root.remove());
+    root.querySelector("[data-close]").addEventListener("click", () => toggleDock(root, true));
+    root.querySelector("[data-restore]").addEventListener("click", () => toggleDock(root, false));
   }
 
   function makeDraggable(root) {
@@ -570,7 +751,11 @@
     if (!state.sync) return;
     window.clearInterval(state.pollTimer);
     fetchRoom(root);
-    state.pollTimer = window.setInterval(() => fetchRoom(root), 2500);
+    state.pollTimer = window.setInterval(() => {
+      // No background requests from a widget that has been removed by its host.
+      if (!root.isConnected) { window.clearInterval(state.pollTimer); return; }
+      fetchRoom(root);
+    }, 2500);
   }
 
   async function fetchRoom(root) {
@@ -584,23 +769,34 @@
     }
   }
 
-  function applyRoomState(root, roomState) {
-    if (!roomState || roomState.version === state.version) return;
-    const incoming = Array.isArray(roomState.playlist) ? roomState.playlist.map(normalizeTrack).filter((track) => track.id || track.url) : [];
-    state.playlist = incoming; // Explicitly reflect empty published rooms, too.
-    state.index = Math.min(Math.max(Number(roomState.index || 0), 0), state.playlist.length - 1);
-    state.playing = Boolean(roomState.playing);
-    state.version = roomState.version || String(Date.now());
-    state.desiredSeek = calculateSeek(roomState);
+  function applyRadioSnapshot(root) {
+    const data = state.radioState;
+    if (!data || !broadcastPlaying()) return;
+    state.playlist = Array.isArray(data.playlist)
+      ? data.playlist.map(normalizeTrack).filter((track) => track.id || track.url) : [];
+    state.index = state.playlist.length
+      ? Math.min(Math.max(Number(data.index || 0), 0), state.playlist.length - 1) : 0;
+    state.playing = Boolean(data.playing);
+    state.desiredSeek = calculateSeek(data);
+    state.radioEnded = false;
     renderTrack(root);
   }
 
+  function applyRoomState(root, roomState) {
+    if (!roomState || roomState.version === state.radioVersion) return;
+    state.radioVersion = roomState.version || String(Date.now());
+    state.radioState = roomState;
+    // Personal mode owns a frozen local queue and playback state. This update
+    // never silently steals playback from someone listening independently.
+    if (broadcastPlaying()) applyRadioSnapshot(root);
+  }
+
   function calculateSeek(roomState) {
-    if (!roomState.playing) return Number(roomState.position || 0);
+    const position = Math.max(0, Number(roomState?.position || 0));
+    if (!roomState?.playing) return position;
     const startedAt = Number(roomState.startedAt || 0);
-    const position = Number(roomState.position || 0);
     if (!startedAt) return position;
-    return Math.max(0, position + ((Date.now() - startedAt) / 1000));
+    return Math.max(0, position + (Date.now() - startedAt) / 1000);
   }
 
   window.Retro96Player = {
