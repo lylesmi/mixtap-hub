@@ -8,7 +8,7 @@
     compact: false,
     player: null,
     spotifyFrame: null,
-    ytReady: false,
+    ytMessageHandler: null,
     room: "",
     hubUrl: "",
     sync: false,
@@ -82,26 +82,6 @@
       return `${track.title} - ${track.author}`;
     }
     return track.title || track.url || "Untitled track";
-  }
-
-  function loadYouTubeApi() {
-    if (window.YT && window.YT.Player) {
-      state.ytReady = true;
-      return Promise.resolve();
-    }
-    return new Promise((resolve) => {
-      const previous = window.onYouTubeIframeAPIReady;
-      window.onYouTubeIframeAPIReady = function () {
-        state.ytReady = true;
-        if (typeof previous === "function") previous();
-        resolve();
-      };
-      if (!document.querySelector("script[src='https://www.youtube.com/iframe_api']")) {
-        const script = document.createElement("script");
-        script.src = "https://www.youtube.com/iframe_api";
-        document.head.appendChild(script);
-      }
-    });
   }
 
   function createPlayer(options) {
@@ -354,6 +334,11 @@
     const link = root.querySelector("[data-link]");
     const play = root.querySelector("[data-play]");
 
+    // A previous YouTube frame may have registered for postMessage events.
+    if (state.ytMessageHandler) {
+      window.removeEventListener("message", state.ytMessageHandler);
+      state.ytMessageHandler = null;
+    }
     screen.innerHTML = "";
     state.player = null;
     state.spotifyFrame = null;
@@ -403,7 +388,11 @@
       const parts = String(track.id || "").split(":");
       const iframe = document.createElement("iframe");
       iframe.allow = "autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture";
-      iframe.loading = "lazy";
+      iframe.referrerPolicy = "strict-origin-when-cross-origin";
+      // Retro Room keeps cross-origin isolation for its emulator. An isolated
+      // document can only show third-party frames via credentialless iframes.
+      if (window.crossOriginIsolated) iframe.setAttribute("credentialless", "");
+      iframe.loading = "eager";
       iframe.src = parts.length === 2 ? `https://open.spotify.com/embed/${parts[0]}/${parts[1]}` : track.url;
       iframe.title = track.title;
       iframe.frameBorder = "0";
@@ -412,37 +401,71 @@
       return;
     }
 
-    const holder = document.createElement("div");
-    holder.id = `r96-yt-${Date.now()}`;
-    screen.appendChild(holder);
-    loadYouTubeApi().then(() => {
-      if (!holder.isConnected || !state.playing || currentTrack()?.id !== track.id) return;
-      state.player = new window.YT.Player(holder.id, {
-        width: "224",
-        height: "200",
-        videoId: track.id,
-        playerVars: {
-          controls: 0,
-          disablekb: 1,
-          modestbranding: 1,
-          rel: 0
-        },
-        events: {
-          onReady: function (event) {
-            if (state.desiredSeek) event.target.seekTo(state.desiredSeek, true);
-            if (state.playing) event.target.playVideo();
-          },
-          onStateChange: function (event) {
-            if (event.data === window.YT.PlayerState.ENDED) next(root);
-          },
-          onError: function () {
-            // Keep the track link usable if the owner disabled embedding.
-            screen.textContent = "This track cannot play embedded. Open the original link below.";
-            state.playing = false;
-            root.querySelector("[data-play]").textContent = "Play";
-          }
-        }
-      });
+    // Avoid www.youtube.com/iframe_api here. That third-party script can be
+    // blocked by Retro Room's COEP require-corp header. Use YouTube's normal
+    // embed URL and its optional postMessage player protocol instead.
+    const iframe = document.createElement("iframe");
+    iframe.id = `r96-yt-${Date.now()}`;
+    iframe.title = `YouTube: ${track.title}`;
+    iframe.width = "224";
+    iframe.height = "200";
+    iframe.frameBorder = "0";
+    iframe.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+    iframe.allowFullscreen = true;
+    iframe.loading = "eager";
+    iframe.referrerPolicy = "strict-origin-when-cross-origin";
+    // On Chromium this lets a COEP-isolated Retro Room embed YouTube while
+    // keeping SharedArrayBuffer and game emulation security enabled.
+    if (window.crossOriginIsolated) iframe.setAttribute("credentialless", "");
+    const validId = /^[a-zA-Z0-9_-]{11}$/.test(String(track.id || ""));
+    if (!validId) {
+      screen.textContent = "This YouTube link could not be embedded. Open the original link below.";
+      state.playing = false;
+      root.querySelector("[data-play]").textContent = "Play";
+      return;
+    }
+    const embed = new URL(`https://www.youtube-nocookie.com/embed/${track.id}`);
+    embed.searchParams.set("autoplay", "1");
+    embed.searchParams.set("controls", "1"); // Fallback if browser blocks audible autoplay.
+    embed.searchParams.set("playsinline", "1");
+    embed.searchParams.set("enablejsapi", "1");
+    if (window.location.origin && window.location.origin !== "null") {
+      embed.searchParams.set("origin", window.location.origin);
+    }
+    const seek = Math.max(0, Math.floor(Number(state.desiredSeek) || 0));
+    if (seek) embed.searchParams.set("start", String(seek));
+    iframe.src = embed.toString();
+    screen.appendChild(iframe);
+    state.player = iframe;
+
+    // The iframe still has its native YouTube Play button. The listener adds
+    // auto-next and readable errors when YouTube sends an API event.
+    state.ytMessageHandler = function (event) {
+      if (event.source !== iframe.contentWindow ||
+          !["https://www.youtube.com", "https://www.youtube-nocookie.com"].includes(event.origin)) return;
+      let payload = event.data;
+      if (typeof payload === "string") {
+        try { payload = JSON.parse(payload); } catch (_) { return; }
+      }
+      if (!payload || typeof payload !== "object") return;
+      if (payload.event === "onStateChange" && Number(payload.info) === 0) next(root);
+      if (payload.event === "onError") {
+        const code = Number(payload.info);
+        let reason = "YouTube couldn't play this video inside Retro Room.";
+        if (code === 101 || code === 150) reason = "The video owner has disabled embedded playback.";
+        if (code === 153) reason = "YouTube rejected the embedded player identification.";
+        screen.textContent = `${reason} Open the original link below.`;
+        state.playing = false;
+        root.querySelector("[data-play]").textContent = "Play";
+        state.player = null;
+      }
+    };
+    window.addEventListener("message", state.ytMessageHandler);
+    iframe.addEventListener("load", () => {
+      if (!iframe.isConnected) return;
+      // Register for state/error notifications without downloading iframe_api.
+      iframe.contentWindow?.postMessage(JSON.stringify({ event: "listening", id: iframe.id }),
+        "https://www.youtube-nocookie.com");
     });
   }
 
