@@ -18,7 +18,10 @@
     mode: "personal",
     listening: true,
     minimized: false,
-    musicOnly: false,
+    radioLocalPlaying: false,
+    radioLocalSeek: 0,
+    radioLocalStartedAt: 0,
+    radioConnection: "connecting",
     radioState: null,
     radioVersion: "",
     radioEnded: false,
@@ -175,7 +178,7 @@
         }
         .r96-modebar {
           display: grid;
-          grid-template-columns: 1fr 1fr 1.2fr;
+          grid-template-columns: 1fr 1fr;
           gap: 3px;
           margin: 0 4px 3px;
         }
@@ -235,6 +238,27 @@
         .r96-widget.r96-playing-media .r96-screen div { width: 100%; height: 200px; }
         .r96-screen img { width: 100%; height: 100%; object-fit: cover; }
         .r96-screen .r96-empty-art { display: grid; place-items: center; height: 100%; font-size: 22px; color: #52ff82; }
+        /* Windows 95 radio display decorates inactive media only. */
+        .r96-widget:not(.r96-playing-media) .r96-screen {
+          background: repeating-linear-gradient(0deg, #030a0a 0 3px, #081710 3px 4px);
+          box-shadow: inset 0 0 14px rgba(36, 255, 142, .14);
+        }
+        .r96-screen .r96-idle-radio-face {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 3px;
+          color: #76ffa8;
+          font: bold 12px/1 "Courier New", monospace;
+          letter-spacing: .02em;
+          text-shadow: 0 0 5px #178743;
+        }
+        .r96-idle-radio-face span {
+          font: 8px/1 "Courier New", monospace;
+          color: #b4ffd0;
+          letter-spacing: .08em;
+        }
         .r96-widget.r96-playing-media .r96-meta { padding: 3px 1px; }
 
         .r96-screen {
@@ -288,16 +312,9 @@
         .r96-widget.r96-compact:not(.r96-playing-media) .r96-stage { display: none; }
         .r96-widget.r96-compact .r96-extra { display: none; }
         .r96-widget.r96-compact .r96-controls { grid-template-columns: 34px 52px 34px; }
-        .r96-widget.r96-music-only .r96-meta { display: none; }
-        .r96-widget.r96-music-only:not(.r96-playing-media) .r96-stage { display: none; }
         /* YouTube playback must always retain a visible >=200x200 frame. */
         .r96-widget.r96-playing-media .r96-stage { display: grid; }
         .r96-widget.r96-playing-media .r96-screen iframe { min-width: 200px; min-height: 200px; }
-        /* Spotify is an audio embed and offers its own compact interface. */
-        .r96-widget.r96-music-only.r96-spotify-media .r96-screen,
-        .r96-widget.r96-music-only.r96-spotify-media .r96-screen iframe {
-          height: 84px; min-height: 84px;
-        }
         .r96-dock-button {
           display: none;
           width: 37px;
@@ -344,7 +361,6 @@
         <div class="r96-modebar" role="group" aria-label="Listening modes">
           <button class="r96-button" type="button" data-radio aria-pressed="false" title="Follow the Mixtap broadcast">Radio</button>
           <button class="r96-button" type="button" data-personal aria-pressed="false" title="Control your own playback independently">Personal</button>
-          <button class="r96-button" type="button" data-music-only aria-pressed="false" title="Compact music layout; YouTube video stays visible while playing">Music only</button>
         </div>
         <div class="r96-status" data-status aria-live="polite"></div>
         <div class="r96-controls">
@@ -379,6 +395,10 @@
     state.localStartedAt = 0;
     state.radioState = null;
     state.radioVersion = "";
+    state.radioLocalPlaying = false;
+    state.radioLocalSeek = 0;
+    state.radioLocalStartedAt = 0;
+    state.radioConnection = state.sync ? "connecting" : "local";
     // The radio controls require a connected hub, not a local-only preview.
     mount.querySelector("[data-radio]").disabled = !state.sync;
 
@@ -405,9 +425,21 @@
     return state.mode === "radio" && state.sync;
   }
 
+  function radioIsActive() {
+    return state.playing || state.radioLocalPlaying;
+  }
+
+  function currentRadioLocalSeek() {
+    return Math.max(0, state.radioLocalSeek + (state.radioLocalPlaying && state.radioLocalStartedAt
+      ? (Date.now() - state.radioLocalStartedAt) / 1000 : 0));
+  }
+
   function canRenderMedia() {
-    return Boolean(currentTrack() && state.playing && !state.minimized &&
-      (!broadcastPlaying() || (state.listening && !state.radioEnded)));
+    return Boolean(currentTrack() && !state.minimized && (
+      broadcastPlaying()
+        ? radioIsActive() && state.listening && !state.radioEnded
+        : state.playing
+    ));
   }
 
   function currentPersonalSeek() {
@@ -421,23 +453,25 @@
     const active = canRenderMedia();
     root.classList.toggle("r96-playing-media", active);
     root.classList.toggle("r96-spotify-media", active && track?.provider === "spotify");
-    root.classList.toggle("r96-music-only", state.musicOnly);
     root.classList.toggle("r96-docked", state.minimized);
     root.querySelector("[data-radio]").setAttribute("aria-pressed", String(radio));
     root.querySelector("[data-personal]").setAttribute("aria-pressed", String(!radio));
-    root.querySelector("[data-music-only]").setAttribute("aria-pressed", String(state.musicOnly));
-    root.querySelector("[data-music-only]").textContent = state.musicOnly ? "Music: On" : "Music only";
     root.querySelector("[data-prev]").disabled = !track || radio;
     root.querySelector("[data-next]").disabled = !track || radio;
     root.querySelector("[data-shuffle]").disabled = !track || radio;
     root.querySelector("[data-pop]").disabled = !track;
-    root.querySelector("[data-play]").disabled = !track || (radio && !state.playing);
+    root.querySelector("[data-play]").disabled = !track || (radio && !state.radioState);
     root.querySelector("[data-play]").textContent = radio
-      ? (!state.playing ? "Waiting" : state.listening ? "Mute" : "Listen")
+      ? (state.playing ? (state.listening ? "Mute" : "Listen") :
+          state.radioLocalPlaying ? "Pause" : "Play")
       : state.playing ? "Pause" : "Play";
     root.querySelector("[data-status]").textContent = radio
-      ? (!state.playing ? "RADIO · Waiting for DJ" : !state.listening ? "RADIO · Muted here only" :
-          state.radioEnded ? "RADIO · Waiting for next song" : "RADIO · Following Mixtap")
+      ? (state.radioConnection === "offline" ? "RADIO · Connection lost; retrying" :
+          !state.radioState ? "RADIO · Connecting to Mixtap" :
+          state.playing ? (!state.listening ? "RADIO · Muted on this PC" :
+            state.radioEnded ? "RADIO · Waiting for next song" : "RADIO · Following DJ broadcast") :
+          state.radioLocalPlaying ? "RADIO · Playing locally; DJ is paused" :
+          "RADIO · DJ paused; press Play to listen")
       : "PERSONAL · Your controls only";
     root.querySelector("[data-restore]").title = state.minimized
       ? "Restore Retro 96 Radio (embedded YouTube playback pauses while minimized)"
@@ -487,8 +521,16 @@
     link.textContent = "open original";
 
     if (!canRenderMedia()) {
+      // A retro standby screen is allowed when the video isn't playing.
+      // We never cover or hide any part of a playing YouTube iframe.
+      if (broadcastPlaying()) {
+        screen.innerHTML = '<div class="r96-idle-radio-face" role="img" aria-label="Retro 96 radio standby display">FM 96.0<span>● STANDBY</span></div>';
+        return;
+      }
       const cover = track.thumbnail || (track.provider === "youtube" && track.id
         ? `https://i.ytimg.com/vi/${encodeURIComponent(track.id)}/hqdefault.jpg` : "");
+      // The retro radio fascia is shown only when the provider player is inactive.
+      // YouTube video and controls must never be obscured while playing.
       if (cover) {
         const img = document.createElement("img");
         img.src = cover;
@@ -532,7 +574,10 @@
     if (!/^[a-zA-Z0-9_-]{11}$/.test(String(track.id || ""))) {
       screen.textContent = "This YouTube link could not be embedded. Open the original link below.";
       if (!broadcastPlaying()) state.playing = false;
-      else state.listening = false;
+      else {
+        state.listening = false;
+        state.radioLocalPlaying = false;
+      }
       updateControls(root);
       return;
     }
@@ -544,8 +589,9 @@
     if (window.location.origin && window.location.origin !== "null") {
       embed.searchParams.set("origin", window.location.origin);
     }
-    const seek = broadcastPlaying() && state.radioState
-      ? calculateSeek(state.radioState) : state.desiredSeek;
+    const seek = broadcastPlaying()
+      ? (state.playing && state.radioState ? calculateSeek(state.radioState) : currentRadioLocalSeek())
+      : state.desiredSeek;
     if (seek > 0) embed.searchParams.set("start", String(Math.floor(seek)));
     iframe.src = embed.toString();
     screen.appendChild(iframe);
@@ -572,8 +618,10 @@
         if (code === 153) reason = "YouTube rejected the embedded player identification.";
         clearProviderPlayer(root);
         screen.textContent = `${reason} Open the original link below.`;
-        if (broadcastPlaying()) state.listening = false;
-        else state.playing = false;
+        if (broadcastPlaying()) {
+          state.listening = false;
+          state.radioLocalPlaying = false;
+        } else state.playing = false;
         updateControls(root);
       }
     };
@@ -588,8 +636,17 @@
   function playPause(root) {
     if (!currentTrack()) return;
     if (broadcastPlaying()) {
-      if (!state.playing) return;
-      state.listening = !state.listening;
+      if (state.playing) {
+        state.listening = !state.listening;
+      } else if (state.radioLocalPlaying) {
+        state.radioLocalSeek = currentRadioLocalSeek();
+        state.radioLocalStartedAt = 0;
+        state.radioLocalPlaying = false;
+      } else {
+        state.radioLocalStartedAt = Date.now();
+        state.radioLocalPlaying = true;
+        state.listening = true;
+      }
       state.radioEnded = false;
     } else {
       if (state.playing) {
@@ -641,6 +698,9 @@
     }
     state.mode = mode;
     state.radioEnded = false;
+    state.radioLocalPlaying = false;
+    state.radioLocalSeek = 0;
+    state.radioLocalStartedAt = 0;
     persistMode();
     if (mode === "radio") {
       state.listening = true;
@@ -664,6 +724,10 @@
         state.desiredSeek = currentPersonalSeek();
         state.playing = false;
         state.localStartedAt = 0;
+      } else if (broadcastPlaying() && state.radioLocalPlaying) {
+        state.radioLocalSeek = currentRadioLocalSeek();
+        state.radioLocalPlaying = false;
+        state.radioLocalStartedAt = 0;
       }
     }
     state.minimized = shouldDock;
@@ -684,11 +748,6 @@
     });
     root.querySelector("[data-radio]").addEventListener("click", () => setListeningMode(root, "radio"));
     root.querySelector("[data-personal]").addEventListener("click", () => setListeningMode(root, "personal"));
-    root.querySelector("[data-music-only]").addEventListener("click", () => {
-      state.musicOnly = !state.musicOnly;
-      // Layout-only: never unload a playing provider iframe.
-      updateControls(root);
-    });
     root.querySelector("[data-minimize]").addEventListener("click", () => {
       state.compact = !state.compact;
       root.classList.toggle("r96-compact", state.compact);
@@ -761,21 +820,41 @@
   async function fetchRoom(root) {
     try {
       const response = await fetch(roomEndpoint(), { cache: "no-store" });
-      if (!response.ok) return;
+      if (!response.ok) throw new Error(`Room unavailable (${response.status})`);
       const roomState = await response.json();
+      if (state.radioConnection !== "connected") {
+        state.radioConnection = "connected";
+        updateControls(root);
+      }
       applyRoomState(root, roomState);
     } catch (_) {
+      state.radioConnection = "offline";
       renderLabels(root);
     }
   }
 
-  function applyRadioSnapshot(root) {
+  function applyRadioSnapshot(root, previousState = null) {
     const data = state.radioState;
     if (!data || !broadcastPlaying()) return;
+    const oldTrack = currentTrack();
+    const oldId = oldTrack && `${oldTrack.provider}:${oldTrack.id}`;
     state.playlist = Array.isArray(data.playlist)
       ? data.playlist.map(normalizeTrack).filter((track) => track.id || track.url) : [];
     state.index = state.playlist.length
       ? Math.min(Math.max(Number(data.index || 0), 0), state.playlist.length - 1) : 0;
+    const newTrack = currentTrack();
+    const newId = newTrack && `${newTrack.provider}:${newTrack.id}`;
+    const djChangedPlay = previousState && Boolean(previousState.playing) !== Boolean(data.playing);
+    if (djChangedPlay) {
+      // Real DJ transport changes always take priority over local listening.
+      state.radioLocalPlaying = false;
+      state.radioLocalSeek = 0;
+      state.radioLocalStartedAt = 0;
+    } else if (oldId !== newId) {
+      // In locally started Radio, follow shared queue changes without writing to it.
+      state.radioLocalSeek = 0;
+      state.radioLocalStartedAt = state.radioLocalPlaying ? Date.now() : 0;
+    }
     state.playing = Boolean(data.playing);
     state.desiredSeek = calculateSeek(data);
     state.radioEnded = false;
@@ -784,11 +863,12 @@
 
   function applyRoomState(root, roomState) {
     if (!roomState || roomState.version === state.radioVersion) return;
+    const previousState = state.radioState;
     state.radioVersion = roomState.version || String(Date.now());
     state.radioState = roomState;
     // Personal mode owns a frozen local queue and playback state. This update
     // never silently steals playback from someone listening independently.
-    if (broadcastPlaying()) applyRadioSnapshot(root);
+    if (broadcastPlaying()) applyRadioSnapshot(root, previousState);
   }
 
   function calculateSeek(roomState) {
