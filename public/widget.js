@@ -8,6 +8,7 @@
     compact: false,
     player: null,
     spotifyFrame: null,
+    audioPlayer: null,
     ytMessageHandler: null,
     room: "",
     hubUrl: "",
@@ -27,7 +28,12 @@
     radioVersion: "",
     radioEnded: false,
     localStartedAt: 0,
-    dockedAt: 0
+    dockedAt: 0,
+    volume: 75,
+    personalPlaylist: [],
+    personalIndex: 0,
+    personalPlaying: false,
+    liveTrack: null
   };
 
   function parseJson(value, fallback) {
@@ -52,7 +58,10 @@
       id,
       url: track.url || buildUrl(provider, id),
       author: track.author || "",
-      thumbnail: track.thumbnail || ""
+      thumbnail: track.thumbnail || "",
+      kind: track.kind || (String(id).startsWith("playlist:") ? "youtube-playlist" : "track"),
+      listId: track.listId || (String(id).startsWith("playlist:") ? String(id).slice(9) : ""),
+      duration: Number(track.duration) || 0
     };
   }
 
@@ -71,7 +80,9 @@
       const watchMatch = url.match(/[?&]v=([^?&#]+)/i);
       if (watchMatch) return watchMatch[1];
       const embedMatch = url.match(/youtube\.com\/embed\/([^?&#/]+)/i);
-      if (embedMatch) return embedMatch[1];
+      if (embedMatch && embedMatch[1] !== "videoseries") return embedMatch[1];
+      const listMatch = url.match(/[?&]list=([a-zA-Z0-9_-]{8,100})/i);
+      if (listMatch) return `playlist:${listMatch[1]}`;
     }
     if (provider === "spotify") {
       const match = url.match(/spotify\.com\/(track|episode|playlist|album)\/([^?&#/]+)/i);
@@ -81,7 +92,7 @@
   }
 
   function buildUrl(provider, id) {
-    if (provider === "youtube") return `https://www.youtube.com/watch?v=${id}`;
+    if (provider === "youtube") return String(id).startsWith("playlist:") ? `https://www.youtube.com/playlist?list=${id.slice(9)}` : `https://www.youtube.com/watch?v=${id}`;
     if (provider === "spotify") {
       const parts = String(id || "").split(":");
       return parts.length === 2 ? `https://open.spotify.com/${parts[0]}/${parts[1]}` : "";
@@ -179,7 +190,7 @@
         }
         .r96-modebar {
           display: grid;
-          grid-template-columns: 1fr 1fr 1.1fr;
+          grid-template-columns: 1fr 1fr;
           gap: 3px;
           margin: 0 4px 3px;
         }
@@ -191,6 +202,19 @@
           border-color: #202060;
           box-shadow: inset 1px 1px #080840;
         }
+        .r96-options { display:flex; align-items:center; gap:7px; padding:2px 5px 5px; font:10px "MS Sans Serif",Tahoma,sans-serif; }
+        .r96-check { display:inline-flex; align-items:center; gap:4px; cursor:pointer; white-space:nowrap; }
+        .r96-check input { appearance:auto; accent-color:#000080; width:13px; height:13px; margin:0; }
+        .r96-volume { display:inline-flex; align-items:center; gap:5px; flex:1; min-width:0; }
+        .r96-volume input { flex:1; width:1px; min-width:28px; accent-color:#000080; cursor:pointer; }
+        .r96-volume output { font:10px Consolas,monospace; min-width:26px; text-align:right; }
+        .r96-track-drawer { margin:1px 4px 4px; border:2px inset #a0a0a0; background:#e4e4e4; color:#000; padding:4px; max-height:170px; overflow:auto; }
+        .r96-track-drawer button { display:block; width:100%; text-align:left; border:0; background:transparent; color:#000; padding:4px 3px; font:11px "MS Sans Serif",Tahoma,sans-serif; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .r96-track-drawer button[aria-current="true"] { background:#000080; color:white; }
+        .r96-track-drawer button:hover { outline:1px dotted #404040; }
+        .r96-track-tab { display:flex; margin:2px 4px 0; }
+        .r96-track-tab .r96-button { border-bottom:0; min-height:23px; padding:3px 8px; }
+        .r96-track-tab[hidden], .r96-track-drawer[hidden] { display:none; }
         .r96-status {
           margin: 0 5px 3px;
           color: #343434;
@@ -345,6 +369,8 @@
         .r96-widget.r96-compact:not(.r96-playing-media) .r96-stage { display: none; }
         .r96-widget.r96-compact .r96-extra { display: none; }
         .r96-widget.r96-compact .r96-controls { grid-template-columns: 34px 52px 34px; }
+        .r96-widget.r96-audio-media .r96-screen { height:68px; display:flex; align-items:center; padding:2px; }
+        .r96-widget.r96-audio-media .r96-screen audio { display:block; }
         /* YouTube playback must always retain a visible >=200x200 frame. */
         .r96-widget.r96-playing-media .r96-stage { display: grid; }
         .r96-widget.r96-playing-media .r96-screen iframe { min-width: 200px; min-height: 200px; }
@@ -393,10 +419,15 @@
         <div class="r96-marquee"><span data-marquee>Loading mixtape...</span></div>
         <div class="r96-modebar" role="group" aria-label="Listening modes">
           <button class="r96-button" type="button" data-radio aria-pressed="false" title="Follow the Mixtap broadcast">Radio</button>
-          <button class="r96-button" type="button" data-personal aria-pressed="false" title="Control your own playback independently">Personal</button>
-          <button class="r96-button" type="button" data-music-only aria-pressed="false" title="Show or hide the retro audio view">Music Only</button>
+          <button class="r96-button" type="button" data-personal aria-pressed="false" title="Control your own playback independently">Local</button>
+        </div>
+        <div class="r96-options">
+          <label class="r96-check"><input type="checkbox" data-music-only> Music only</label>
+          <label class="r96-volume" title="Volume on this device only">Vol <input type="range" min="0" max="100" step="5" value="75" data-volume aria-label="Local player volume"><output data-volume-label>75%</output></label>
         </div>
         <div class="r96-status" data-status aria-live="polite"></div>
+        <div class="r96-track-tab" data-local-tab><button class="r96-button" data-track-toggle type="button" aria-expanded="false">▤ TRACK LIST ▾</button></div>
+        <div class="r96-track-drawer" data-local-tracks hidden></div>
         <div class="r96-controls">
           <button class="r96-button" type="button" data-prev aria-label="Previous track">&lt;&lt;</button>
           <button class="r96-button" type="button" data-play aria-label="Play or pause">Play</button>
@@ -419,7 +450,14 @@
     document.body.appendChild(mount);
     state.playlist = (options.playlist || DEFAULT_PLAYLIST).map(normalizeTrack).filter((track) => track.id || track.url);
     // An empty published room must not display a demo video that is not in the queue.
-    state.index = Math.min(Math.max(Number(options.startIndex || 0), 0), state.playlist.length - 1);
+    state.index = Math.min(Math.max(Number(options.startIndex || 0), 0), Math.max(0, state.playlist.length - 1));
+    state.personalPlaylist = state.playlist.map(track => ({ ...track }));
+    state.personalIndex = state.index;
+    state.personalPlaying = false;
+    state.liveTrack = null;
+    try { state.volume = Math.max(0, Math.min(100, Number(window.localStorage.getItem("retro96-volume") ?? 75))); }
+    catch (_) { state.volume = 75; }
+    mount.querySelector("[data-volume]").value = String(state.volume);
     state.room = options.room || "";
     state.hubUrl = options.hubUrl || "";
     state.sync = Boolean(options.sync && state.room && state.hubUrl);
@@ -453,7 +491,31 @@
   }
 
   function currentTrack() {
-    return state.playlist[state.index] || state.playlist[0];
+    return (broadcastPlaying() && state.radioState?.activeTrack?.id ? normalizeTrack(state.radioState.activeTrack) : null)
+      || state.playlist[state.index] || state.playlist[0];
+  }
+
+  function renderLocalTrackList(root) {
+    const drawer = root.querySelector("[data-local-tracks]");
+    drawer.replaceChildren();
+    state.playlist.forEach((track, idx) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = `${String(idx + 1).padStart(2, "0")}. ${track.title}`;
+      button.setAttribute("aria-current", String(idx === state.index));
+      button.title = trackLabel(track);
+      button.addEventListener("click", () => choosePersonalTrack(root, idx));
+      drawer.appendChild(button);
+    });
+  }
+
+  function setLocalVolume() {
+    if (state.audioPlayer) state.audioPlayer.volume = state.volume / 100;
+    if (state.player?.contentWindow) {
+      state.player.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [state.volume]}), "https://www.youtube-nocookie.com");
+      if (state.volume === 0) state.player.contentWindow.postMessage(JSON.stringify({event: "command", func: "mute", args: []}), "https://www.youtube-nocookie.com");
+      else state.player.contentWindow.postMessage(JSON.stringify({event: "command", func: "unMute", args: []}), "https://www.youtube-nocookie.com");
+    }
   }
 
   function broadcastPlaying() {
@@ -470,7 +532,7 @@
   }
 
   function canRenderMedia() {
-    return Boolean(currentTrack() && !state.minimized && (
+    return Boolean(currentTrack() && (!state.minimized || currentTrack().provider === "upload") && (
       broadcastPlaying()
         ? radioIsActive() && state.listening && !state.radioEnded
         : state.playing
@@ -488,9 +550,13 @@
     const active = canRenderMedia();
     root.classList.toggle("r96-playing-media", active);
     root.classList.toggle("r96-spotify-media", active && track?.provider === "spotify");
+    root.classList.toggle("r96-audio-media", active && track?.provider === "upload");
     root.classList.toggle("r96-docked", state.minimized);
     root.classList.toggle("r96-music-only", state.musicOnly);
-    root.querySelector("[data-music-only]").setAttribute("aria-pressed", String(state.musicOnly));
+    root.querySelector("[data-music-only]").checked = state.musicOnly;
+    root.querySelector("[data-volume-label]").textContent = `${state.volume}%`;
+    root.querySelector("[data-local-tab]").hidden = radio;
+    root.querySelector("[data-local-tracks]").hidden = radio || root.querySelector("[data-track-toggle]").getAttribute("aria-expanded") !== "true";
     root.querySelector("[data-radio]").setAttribute("aria-pressed", String(radio));
     root.querySelector("[data-personal]").setAttribute("aria-pressed", String(!radio));
     root.querySelector("[data-prev]").disabled = !track || radio;
@@ -509,9 +575,9 @@
             state.radioEnded ? "RADIO · Waiting for next song" : "RADIO · Following DJ broadcast") :
           state.radioLocalPlaying ? "RADIO · Playing locally; DJ is paused" :
           "RADIO · DJ paused; press Play to listen")
-      : "PERSONAL · Your controls only";
+      : "LOCAL · Your controls only";
     root.querySelector("[data-restore]").title = state.minimized
-      ? "Restore Retro 96 Radio (embedded YouTube playback pauses while minimized)"
+      ? "Restore Retro 96 Radio (media playback pauses while minimized)"
       : "Restore Retro 96 Radio";
     root.querySelector("[data-restore]").setAttribute("aria-label", root.querySelector("[data-restore]").title);
   }
@@ -524,6 +590,7 @@
     root.querySelector("[data-screen]").replaceChildren();
     state.player = null;
     state.spotifyFrame = null;
+    state.audioPlayer = null;
   }
 
   function renderTrack(root) {
@@ -536,6 +603,7 @@
     const link = root.querySelector("[data-link]");
     clearProviderPlayer(root);
     updateControls(root);
+    if (!broadcastPlaying()) renderLocalTrackList(root);
 
     if (!track) {
       marquee.textContent = "No songs published to Retro 96";
@@ -564,7 +632,7 @@
         screen.innerHTML = '<div class="r96-idle-radio-face" role="img" aria-label="Retro 96 radio standby display">FM 96.0<span>● STANDBY</span></div>';
         return;
       }
-      const cover = track.thumbnail || (track.provider === "youtube" && track.id
+      const cover = track.thumbnail || (track.provider === "youtube" && /^[a-zA-Z0-9_-]{11}$/.test(String(track.id || ""))
         ? `https://i.ytimg.com/vi/${encodeURIComponent(track.id)}/hqdefault.jpg` : "");
       // The retro radio fascia is shown only when the provider player is inactive.
       // YouTube video and controls must never be obscured while playing.
@@ -580,6 +648,26 @@
       return;
     }
 
+    if (track.provider === "upload") {
+      const audio = document.createElement("audio");
+      audio.src = track.url; audio.preload = "auto"; audio.controls = true; audio.autoplay = true;
+      audio.volume = state.volume / 100;
+      audio.setAttribute("aria-label", `Audio player: ${track.title}`);
+      audio.style.width = "100%";
+      audio.style.minHeight = "54px";
+      audio.style.margin = "18px 0";
+      const seek = broadcastPlaying() && state.radioState ? calculateSeek(state.radioState) : currentPersonalSeek();
+      audio.addEventListener("loadedmetadata", () => {
+        if (Number.isFinite(seek)) audio.currentTime = Math.min(Math.max(0, seek), Math.max(0, audio.duration - .15));
+        audio.play().catch(() => {
+          root.querySelector("[data-status]").textContent = "Press play on the audio controls to start listening";
+        });
+      });
+      audio.addEventListener("ended", () => { if (!broadcastPlaying()) next(root); });
+      screen.appendChild(audio);
+      state.audioPlayer = audio;
+      return;
+    }
     if (track.provider === "spotify") {
       const parts = String(track.id || "").split(":");
       const iframe = document.createElement("iframe");
@@ -608,7 +696,7 @@
     iframe.loading = "eager";
     iframe.referrerPolicy = "strict-origin-when-cross-origin";
     if (window.crossOriginIsolated) iframe.setAttribute("credentialless", "");
-    if (!/^[a-zA-Z0-9_-]{11}$/.test(String(track.id || ""))) {
+    if (!/^[a-zA-Z0-9_-]{11}$/.test(String(track.id || "")) && !/^playlist:[a-zA-Z0-9_-]{8,100}$/.test(String(track.id || ""))) {
       screen.textContent = "This YouTube link could not be embedded. Open the original link below.";
       if (!broadcastPlaying()) state.playing = false;
       else {
@@ -618,7 +706,9 @@
       updateControls(root);
       return;
     }
-    const embed = new URL(`https://www.youtube-nocookie.com/embed/${track.id}`);
+    const isList = String(track.id).startsWith("playlist:");
+    const embed = new URL(isList ? "https://www.youtube-nocookie.com/embed/videoseries" : `https://www.youtube-nocookie.com/embed/${track.id}`);
+    if (isList) embed.searchParams.set("list", track.id.slice(9));
     embed.searchParams.set("autoplay", "1");
     embed.searchParams.set("controls", "1");
     embed.searchParams.set("playsinline", "1");
@@ -647,6 +737,20 @@
         try { payload = JSON.parse(payload); } catch (_) { return; }
       }
       if (!payload || typeof payload !== "object") return;
+      if (payload.event === "infoDelivery" && payload.info?.videoData) {
+        const video = payload.info.videoData;
+        if (typeof video.title === "string" && video.title.trim() && isList) {
+          const shown = video.title.trim().slice(0, 200);
+          const by = String(video.author || "").slice(0, 200);
+          root.querySelector("[data-title]").textContent = shown;
+          root.querySelector("[data-author]").textContent = by;
+          root.querySelector("[data-author]").hidden = !by;
+          root.querySelector("[data-marquee]").textContent = `Playing: ${shown}${by ? " - " + by : ""}`;
+          if (/^[a-zA-Z0-9_-]{11}$/.test(video.video_id || "")) {
+            root.querySelector("[data-link]").href = `https://www.youtube.com/watch?v=${video.video_id}`;
+          }
+        }
+      }
       if (payload.event === "onStateChange" && Number(payload.info) === 0) {
         if (broadcastPlaying()) {
           state.radioEnded = true;
@@ -670,6 +774,7 @@
     window.addEventListener("message", state.ytMessageHandler);
     iframe.addEventListener("load", () => {
       if (!iframe.isConnected) return;
+      setLocalVolume();
       iframe.contentWindow?.postMessage(JSON.stringify({ event: "listening", id: iframe.id }),
         "https://www.youtube-nocookie.com");
     });
@@ -708,6 +813,7 @@
   function choosePersonalTrack(root, index) {
     if (broadcastPlaying() || !state.playlist.length) return;
     state.index = index;
+    state.personalIndex = index;
     state.desiredSeek = 0;
     state.localStartedAt = state.playing ? Date.now() : 0;
     renderTrack(root);
@@ -732,13 +838,26 @@
 
   function setListeningMode(root, mode) {
     if (mode === "radio" && !state.sync) return;
-    if (state.mode === mode) return;
+    if (state.mode === mode) {
+      if (mode === "radio") { state.listening = true; state.radioEnded = false; if (state.radioState) applyRadioSnapshot(root, null, true); else fetchRoom(root); }
+      return;
+    }
+    if (state.mode === "personal") {
+      state.personalPlaylist = state.playlist.map(track => ({...track}));
+      state.personalIndex = state.index;
+      state.personalPlaying = state.playing;
+    }
     if (mode === "personal") {
       state.desiredSeek = broadcastPlaying() && state.radioState
         ? calculateSeek(state.radioState) : state.desiredSeek;
       state.localStartedAt = state.playing ? Date.now() : 0;
     }
     state.mode = mode;
+    if (mode === "personal") {
+      state.playlist = state.personalPlaylist.map(track => ({...track}));
+      state.index = Math.min(state.personalIndex, Math.max(0, state.playlist.length - 1));
+      state.playing = state.personalPlaying;
+    }
     state.radioEnded = false;
     state.radioLocalPlaying = false;
     state.radioLocalSeek = 0;
@@ -760,13 +879,14 @@
     if (shouldDock) {
       state.savedPosition = { left: root.style.left, top: root.style.top,
         right: root.style.right, bottom: root.style.bottom };
-      // Hidden YouTube video playback isn't permitted; removing the iframe
-      // pauses local audio. Radio remains subscribed for future updates.
-      if (!broadcastPlaying() && state.playing) {
+      // Uploaded audio can continue playing when docked, while embedded
+      // YouTube/Spotify media must be removed when no longer visible.
+      const backgroundAudio = currentTrack()?.provider === "upload";
+      if (!backgroundAudio && !broadcastPlaying() && state.playing) {
         state.desiredSeek = currentPersonalSeek();
         state.playing = false;
         state.localStartedAt = 0;
-      } else if (broadcastPlaying() && state.radioLocalPlaying) {
+      } else if (!backgroundAudio && broadcastPlaying() && state.radioLocalPlaying) {
         state.radioLocalSeek = currentRadioLocalSeek();
         state.radioLocalPlaying = false;
         state.radioLocalStartedAt = 0;
@@ -776,7 +896,8 @@
     if (!shouldDock && state.savedPosition) {
       Object.assign(root.style, state.savedPosition);
     }
-    renderTrack(root);
+    if (currentTrack()?.provider === "upload" && state.audioPlayer) updateControls(root);
+    else renderTrack(root);
     if (!shouldDock) root.querySelector("[data-close]").focus();
   }
 
@@ -790,10 +911,22 @@
     });
     root.querySelector("[data-radio]").addEventListener("click", () => setListeningMode(root, "radio"));
     root.querySelector("[data-personal]").addEventListener("click", () => setListeningMode(root, "personal"));
-    root.querySelector("[data-music-only]").addEventListener("click", () => {
-      state.musicOnly = !state.musicOnly;
+    root.querySelector("[data-music-only]").addEventListener("change", (event) => {
+      state.musicOnly = event.target.checked;
       try { window.localStorage.setItem("retro96-music-only", String(state.musicOnly)); } catch (_) { /* browser privacy */ }
       // Keep the mounted iframe and current audio uninterrupted.
+      updateControls(root);
+    });
+    root.querySelector("[data-volume]").addEventListener("input", (event) => {
+      state.volume = Math.min(100, Math.max(0, Number(event.target.value)));
+      try { window.localStorage.setItem("retro96-volume", String(state.volume)); } catch (_) {}
+      setLocalVolume(); updateControls(root);
+    });
+    root.querySelector("[data-track-toggle]").addEventListener("click", () => {
+      const tab = root.querySelector("[data-track-toggle]");
+      const expanded = tab.getAttribute("aria-expanded") !== "true";
+      tab.setAttribute("aria-expanded", String(expanded));
+      tab.textContent = expanded ? "▤ TRACK LIST ▴" : "▤ TRACK LIST ▾";
       updateControls(root);
     });
     root.querySelector("[data-minimize]").addEventListener("click", () => {
@@ -881,10 +1014,10 @@
     }
   }
 
-  function applyRadioSnapshot(root, previousState = null) {
+  function applyRadioSnapshot(root, previousState = null, force = false) {
     const data = state.radioState;
     if (!data || !broadcastPlaying()) return;
-    const oldTrack = currentTrack();
+    const oldTrack = previousState?.activeTrack?.id ? normalizeTrack(previousState.activeTrack) : (previousState?.playlist?.[previousState.index || 0] || currentTrack());
     const oldId = oldTrack && `${oldTrack.provider}:${oldTrack.id}`;
     state.playlist = Array.isArray(data.playlist)
       ? data.playlist.map(normalizeTrack).filter((track) => track.id || track.url) : [];
@@ -906,7 +1039,8 @@
     state.playing = Boolean(data.playing);
     state.desiredSeek = calculateSeek(data);
     state.radioEnded = false;
-    renderTrack(root);
+    if (force || oldId !== newId || djChangedPlay || (!state.player && !state.audioPlayer && !state.spotifyFrame && canRenderMedia())) renderTrack(root);
+    else renderLabels(root);
   }
 
   function applyRoomState(root, roomState) {
