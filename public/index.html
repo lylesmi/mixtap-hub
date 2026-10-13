@@ -1179,7 +1179,12 @@
       } catch(error) { showPlaylistStatus(error.message); }
     }
     els.savedPlaylistSelect.addEventListener("change",()=>{
-      if (els.savedPlaylistSelect.value) loadNamedPlaylist(); else newPlaylist();
+      if (els.savedPlaylistSelect.value) {
+        if (playlist.length && !window.confirm("Switch playlists? Unsaved editor changes will be replaced. Your saved playlists and Radio are unchanged.")) {
+          els.savedPlaylistSelect.value = selectedPlaylistId; return;
+        }
+        loadNamedPlaylist();
+      } else newPlaylist();
     });
     els.newPlaylist.addEventListener("click",newPlaylist);
     async function saveNamedPlaylist() {
