@@ -702,8 +702,6 @@
       url: document.querySelector("#url"),
       addTrack: document.querySelector("#addTrack"),
       refreshMetadata: document.querySelector("#refreshMetadata"),
-      loadDemo: document.querySelector("#loadDemo"),
-      clearTracks: document.querySelector("#clearTracks"),
       status: document.querySelector("#status"),
       tracks: document.querySelector("#tracks"),
       embedCode: document.querySelector("#embedCode"),
@@ -1114,9 +1112,8 @@
           initialMode: "personal"
         });
         els.preview.appendChild(previewWidget);
-      } else if (playlist.length) {
-        // A newly built mix appears immediately in the Local preview,
-        // without publishing it or changing the radio station.
+      } else {
+        // The new playlist control clears the Local preview as well.
         window.Retro96Player.updatePlaylist(playlist, { preferOwnPlaylist: true });
       }
     }
