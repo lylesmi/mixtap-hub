@@ -386,7 +386,7 @@
     .audio-library-row audio { height:30px; max-width:100%; width:180px; }
     .onair-frame audio { width:100%; margin:24px 0; }
 
-    /* Mixtap v1.2.2 workspace: compact tabbed control desk */
+    /* Mixtap v1.2.3 workspace: compact tabbed control desk */
     :root { --panel: #141b36; --panel-2:#1b2746; --line:rgba(169,203,235,.17); --green:#74f1bf; --pink:#fb68c8; --cyan:#79cfe5; --yellow:#f9db8c; }
     .mixtap-app { width:min(1380px,calc(100% - 44px)); padding:20px 0 44px; }
     .mixtap-app header { display:flex; align-items:center; justify-content:space-between; gap:24px; margin:0 0 16px; }
@@ -450,6 +450,12 @@
     .indicator-pill { display:inline-block; border:1px solid #337d70; color:#97f3d1; border-radius:4px; padding:2px 6px; font:700 10px/1.4 monospace; }
     .preview-refresh { justify-self:start; font-size:11px; }
     .preview-tip { color:#91aec1; font-size:11px; line-height:1.55; margin:0; }
+    .radio-source-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:14px 0 11px; }
+    .radio-source-grid .field { min-width:0; }
+    .radio-source-grid select { width:100%; max-width:100%; }
+    .radio-source-description { border-left:3px solid #7de4cd; padding:5px 9px; margin:10px 0 12px; background:#10293a; border-radius:3px; }
+    #radioSourceStatus { color:#a3e8de; }
+    @media(max-width:520px) { .radio-source-grid { grid-template-columns:1fr; gap:7px; } }
     .radio-studio .panel-body { padding:16px; }
     .radio-studio .onair-frame { min-height:180px; }
     #tab-share .panel+.panel { margin-top:0; }
@@ -467,7 +473,7 @@
 <h1>Mixtap <span class="brand-accent">96</span></h1>
 <p class="lede">Your music. Your station. One retro control desk.</p>
 </div>
-<div class="badge">Self-hosted ljas.ca · v1.2.2</div>
+<div class="badge">Self-hosted ljas.ca · v1.2.3</div>
 </header>
     <div class="app-overview-strip" role="status" aria-live="polite">
       <div class="broadcast-dot" aria-hidden="true"></div>
@@ -546,16 +552,26 @@
 </div></div></section>
         </section>
         <section class="workspace-panel" id="tab-radio" role="tabpanel" aria-labelledby="tab-button-radio" hidden>
-          <div class="section-intro"><span class="section-eyebrow">MASTER BROADCAST</span><h2>Radio Studio</h2><p>DJ controls change the shared station for everyone. Listening through your player doesn't affect the broadcast.</p></div>
+          <div class="section-intro"><span class="section-eyebrow">MASTER BROADCAST</span><h2>Radio Studio</h2><p>Choose a music source and saved mix, then broadcast. DJ controls change what everyone hears; listening does not affect the station.</p></div>
           <section class="panel radio-studio" id="radioStudio">
 <h2>📻 Radio Studio — On Air</h2>
 <div class="panel-body">
 <div class="radio-onair"><strong id="radioNowPlaying">Checking live broadcast...</strong><span id="radioOnAirStatus">The shared radio is independent of your local playlist.</span></div>
 <div class="onair-frame" id="radioPlayerBox"><div id="radioPlayerIdle">♫ Tune in to the live broadcast or press Play to start broadcasting your selected playlist.</div></div>
-<div class="auto-radio-box">
-<strong>24/7 Auto Radio · Your uploaded music</strong>
-<p class="note">Start a continuous broadcast from the uploaded songs in your current mix. It keeps advancing on the server even when this browser is closed, and listeners join the track currently on air. YouTube and Spotify links still use the DJ controls below.</p>
-<div class="actions"><button class="btn primary" id="startAutoRadio" type="button">▶ Start 24/7 Radio</button><button class="btn" id="stopAutoRadio" type="button">■ Stop 24/7 Radio</button></div>
+<div class="auto-radio-box radio-source-box">
+<strong>Choose what plays on Radio</strong>
+<p class="note">Broadcast your uploaded audio, YouTube links, Spotify links, or a mix of both services. Everyone's Radio widget follows the published station.</p>
+<div class="radio-source-grid">
+  <div class="field"><label for="radioSource">Radio music source</label>
+    <select id="radioSource"><option value="upload">Uploaded music · 24/7</option><option value="youtube">YouTube links</option><option value="spotify">Spotify links</option><option value="links">YouTube + Spotify links</option></select>
+  </div>
+  <div class="field"><label for="radioMixSelect">Choose a playlist to broadcast</label>
+    <select id="radioMixSelect"><option value="current">Current editor mix</option></select>
+  </div>
+</div>
+<div class="radio-source-description note" id="radioSourceDescription">Uploaded songs run 24/7 on your server, even after you close this tab.</div>
+<div class="actions"><button class="btn primary" id="startAutoRadio" type="button">▶ Start selected Radio source</button><button class="btn" id="stopAutoRadio" type="button">■ Stop 24/7 Radio</button></div>
+<p class="note" id="radioSourceStatus" role="status">Choose a source and playlist, then start Radio.</p>
 <p class="note" id="autoRadioStatus" role="status">Checking station...</p>
 </div>
 <div class="actions"><button class="btn" id="radioListen" type="button">♫ Listen live</button><button class="btn" id="radioStopListening" type="button">Stop listening locally</button></div>
@@ -565,7 +581,7 @@
 <button class="btn" id="broadcastNext" type="button">Next</button>
 <button class="btn" id="broadcastPrev" type="button">Prev</button>
 </div>
-<p class="note">For YouTube and Spotify, this is the DJ player. Keep this tab open for YouTube playlist track-change reporting and automatic Next at the end of a single video. Radio listeners join the current video and approximate live timestamp. Browser autoplay, YouTube embed restrictions and Spotify controls still apply.</p>
+<p class="note">For YouTube or Spotify, keep the Mixtap DJ page open while broadcasting; these services cannot run as unattended 24/7 server audio. YouTube listeners can join an approximate position, while Spotify listeners may have to press Play themselves and will not be sample-synchronized. Browser autoplay and provider embedding restrictions apply.</p>
 </div>
 </section>
         </section>
@@ -710,6 +726,10 @@
       refreshAudioLibrary: document.querySelector("#refreshAudioLibrary"),
       audioUploadStatus: document.querySelector("#audioUploadStatus"),
       audioLibraryList: document.querySelector("#audioLibraryList"),
+      radioSource: document.querySelector("#radioSource"),
+      radioMixSelect: document.querySelector("#radioMixSelect"),
+      radioSourceDescription: document.querySelector("#radioSourceDescription"),
+      radioSourceStatus: document.querySelector("#radioSourceStatus"),
       startAutoRadio: document.querySelector("#startAutoRadio"),
       stopAutoRadio: document.querySelector("#stopAutoRadio"),
       autoRadioStatus: document.querySelector("#autoRadioStatus"),
@@ -738,6 +758,7 @@
     let liveReportTimer = 0;
     let radioCurrentTime = 0;
     let audioLibrary = [];
+    let radioDjQueue = null; // Separate broadcast queue; selecting a radio mix never overwrites Local editing.
     let autoRadioOn = false;
     function publishingFeedback(message, state = "locked") {
       els.publishingStatus.textContent = message;
@@ -1083,7 +1104,13 @@
         savedMixes = (await response.json()).playlists || [];
         const select = els.savedPlaylistSelect;
         select.replaceChildren(new Option("Choose a saved mix...", ""));
-        savedMixes.forEach(item => select.add(new Option(`${item.name} (${item.count})`, item.id)));
+        const oldRadioSelection = els.radioMixSelect.value || "current";
+        els.radioMixSelect.replaceChildren(new Option("Current editor mix", "current"));
+        savedMixes.forEach(item => {
+          select.add(new Option(`${item.name} (${item.count})`, item.id));
+          els.radioMixSelect.add(new Option(`${item.name} (${item.count})`, item.id));
+        });
+        els.radioMixSelect.value = savedMixes.some(item => item.id === oldRadioSelection) ? oldRadioSelection : "current";
         select.value = savedMixes.some(item => item.id === selectedPlaylistId) ? selectedPlaylistId : "";
       } catch (error) { showPlaylistStatus(`Could not load saved playlists: ${error.message}`); }
     }
@@ -1138,17 +1165,10 @@
     });
     els.playSavedOnRadio.addEventListener("click", async () => {
       if (!selectedPlaylistId || !adminPublishingKey) return showPlaylistStatus("Select a saved mix and unlock publishing first.");
-      await loadNamedPlaylist();
-      if (playlist.length && playlist.every(track => track.provider === "upload")) {
-        await stationCommand("start", {trackIds: playlist.map(track => track.id)});
-        return;
-      }
-      if (autoRadioOn) {
-        const stopped = await stationCommand("stop");
-        if (!stopped) return;
-      }
-      radioIsDJ = true;
-      broadcast({ index: 0, playing: true, activeTrack: null, position: 0, startedAt: Date.now() });
+      els.radioMixSelect.value = selectedPlaylistId;
+      const ok = await startSelectedRadioSource();
+      showPlaylistStatus(ok ? "Saved mix is broadcasting from the selected Radio source." : "Couldn't start that mix. Check the Radio Studio status.");
+      activateTab("radio");
     });
 
     async function loadAudioLibrary() {
@@ -1209,16 +1229,65 @@
         const data = await response.json(); if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
         await refreshAutoRadio(); await checkSharedQueue();
         radioIsDJ = false;
+        if (command === "start") radioDjQueue = null;
         if (command === "start") { radioIsListening = true; renderRadioPlayer(true); }
         return true;
       } catch (e) { els.autoRadioStatus.textContent = `Station command failed: ${e.message}`; return false; }
     }
-    els.startAutoRadio.addEventListener("click", () => {
-      const ids = playlist.filter(track => track.provider === "upload").map(track => track.id);
-      if (!ids.length) { els.autoRadioStatus.textContent = "Add uploaded songs to your mix first. Auto Radio only schedules uploaded audio."; return; }
-      stationCommand("start", { trackIds: ids });
+    const radioSourceHelp = {
+      upload: "Uploaded music is scheduled on the server 24/7, even with the DJ browser closed. Choose a mix containing uploaded songs.",
+      youtube: "YouTube videos and playlists use the Mixtap DJ page. Leave this page open to send track changes; viewers may need to press Play.",
+      spotify: "Spotify uses official embeds. Leave the DJ page open; Spotify listeners may need to press Play and cannot be forced to the same timestamp.",
+      links: "YouTube and Spotify links can share a broadcast queue. Embeds still follow each provider's playback restrictions; leave the DJ page open."
+    };
+    function updateRadioSourceHelp() {
+      const mode = els.radioSource.value;
+      els.radioSourceDescription.textContent = radioSourceHelp[mode] || radioSourceHelp.upload;
+      els.stopAutoRadio.hidden = mode !== "upload";
+      els.startAutoRadio.textContent = mode === "upload" ? "▶ Start 24/7 Uploaded Radio" : "▶ Broadcast selected links";
+    }
+    els.radioSource.addEventListener("change", updateRadioSourceHelp);
+    updateRadioSourceHelp();
+
+    async function selectedRadioTracks() {
+      const selected = els.radioMixSelect.value;
+      if (selected === "current") return playlist.map(normalizeTrack).filter(t => t.provider && t.id);
+      const result = await fetch(`/api/playlists/${encodeURIComponent(selected)}`, {cache: "no-store"});
+      if (!result.ok) throw new Error("Couldn't load the selected saved playlist.");
+      const item = await result.json();
+      return (item.tracks || []).map(normalizeTrack).filter(t => t.provider && t.id);
+    }
+    async function startSelectedRadioSource() {
+      if (!adminPublishingKey) {
+        els.radioSourceStatus.textContent = "Unlock publishing under Admin Access before broadcasting.";
+        return false;
+      }
+      const mode = els.radioSource.value;
+      let tracks;
+      try { tracks = await selectedRadioTracks(); }
+      catch (error) { els.radioSourceStatus.textContent = error.message; return false; }
+      const sourceTracks = tracks.filter(track => mode === "links" ? ["youtube", "spotify"].includes(track.provider) : track.provider === mode);
+      if (!sourceTracks.length) {
+        els.radioSourceStatus.textContent = `No ${mode === "links" ? "YouTube or Spotify links" : mode === "upload" ? "uploaded songs" : mode + " links"} found in that playlist. Add links on the Playlists tab, save the mix, or choose another playlist.`;
+        return false;
+      }
+      if (mode === "upload") {
+        const started = await stationCommand("start", {trackIds: sourceTracks.map(track => track.id)});
+        if (started) { radioDjQueue = null; els.radioSourceStatus.textContent = `24/7 Uploaded Radio started with ${sourceTracks.length} song(s).`; }
+        return Boolean(started);
+      }
+      if (autoRadioOn && !(await stationCommand("stop"))) {
+        els.radioSourceStatus.textContent = "Couldn't stop the previous 24/7 station; no link broadcast started.";
+        return false;
+      }
+      const published = await broadcast({index: 0, playing: true, activeTrack: null, position: 0, startedAt: Date.now()}, {tracks: sourceTracks, dj: true});
+      if (published) els.radioSourceStatus.textContent = `${sourceTracks.length} ${mode === "links" ? "YouTube/Spotify" : mode === "youtube" ? "YouTube" : "Spotify"} item(s) on Radio. Keep this DJ page open. Listeners may need to press Play.`;
+      return Boolean(published);
+    }
+    els.startAutoRadio.addEventListener("click", startSelectedRadioSource);
+    els.stopAutoRadio.addEventListener("click", async () => {
+      if (await stationCommand("stop")) els.radioSourceStatus.textContent = "24/7 Uploaded Radio stopped. The live broadcast no longer advances automatically.";
     });
-    els.stopAutoRadio.addEventListener("click", () => stationCommand("stop"));
 
     function liveTrack() {
       return radioSnapshot?.activeTrack?.id ? radioSnapshot.activeTrack : radioSnapshot?.playlist?.[radioSnapshot.index || 0];
@@ -1235,7 +1304,7 @@
     }
     function renderRadioPlayer(force = false) {
       if (!radioIsListening) return;
-      const current = radioIsDJ ? playlist[streamState.index] : liveTrack();
+      const current = radioIsDJ ? (radioDjQueue || playlist)[streamState.index] : liveTrack();
       if (!current || !radioSnapshot?.playing && !radioIsDJ) return;
       const id = String(current.id || "");
       const key = `${id}:${radioIsDJ}`;
@@ -1304,10 +1373,10 @@
           }
         }
       }
-      if (msg.event === "onStateChange" && Number(msg.info) === 0 && radioIsDJ && !String(playlist[streamState.index]?.id || "").startsWith("playlist:")) {
+      if (msg.event === "onStateChange" && Number(msg.info) === 0 && radioIsDJ && !String((radioDjQueue || playlist)[streamState.index]?.id || "").startsWith("playlist:")) {
         // Only an unlocked owner's active DJ page may advance a shared room.
-        const nextIndex = (streamState.index + 1) % Math.max(playlist.length, 1);
-        broadcast({index: nextIndex, activeTrack:null, playing:true,position:0,startedAt:Date.now()});
+        const nextIndex = (streamState.index + 1) % Math.max((radioDjQueue || playlist).length, 1);
+        broadcast({index: nextIndex, activeTrack:null, playing:true,position:0,startedAt:Date.now()}, {dj: true});
       }
     });
     els.radioListen.addEventListener("click", async () => {
@@ -1337,8 +1406,9 @@
         publishingFeedback("Publishing locked. Enter your key and click Unlock publishing.", "error");
         return false;
       }
-      if (!playlist.length) {
-        publishingFeedback("Your browser playlist is empty. Add a song before publishing.", "error");
+      const outgoingTracks = (options.tracks || (options.dj && radioDjQueue) || playlist).map(normalizeTrack).filter(track => track.provider && track.id);
+      if (!outgoingTracks.length) {
+        publishingFeedback("The selected Radio playlist is empty. Add matching songs first.", "error");
         return false;
       }
       publishingFeedback(options.explicit ? "Publishing your queue to Retro Room..." : "Syncing playlist changes...", "pending");
@@ -1346,7 +1416,7 @@
       streamState = {
         ...streamState,
         ...nextState,
-        index: playlist.length ? Math.min(Math.max(nextState.index ?? streamState.index, 0), playlist.length - 1) : 0
+        index: Math.min(Math.max(nextState.index ?? streamState.index, 0), outgoingTracks.length - 1)
       };
 
       if (streamState.playing && !nextState.startedAt) {
@@ -1354,7 +1424,7 @@
       }
 
       const payload = {
-        playlist,
+        playlist: outgoingTracks,
         index: streamState.index,
         playing: streamState.playing,
         position: streamState.position,
@@ -1379,10 +1449,12 @@
           throw new Error(outcome.error || `Publish failed with HTTP ${response.status}.`);
         }
         const confirmed = await checkSharedQueue();
-        if (!confirmed || confirmed.version !== payload.version || sharedTrackCount !== playlist.length) {
+        if (!confirmed || confirmed.version !== payload.version || sharedTrackCount !== outgoingTracks.length) {
           throw new Error("The server did not confirm your latest queue. Please check before retrying.");
         }
+        if (options.explicit) radioDjQueue = null;
         if (streamState.playing) {
+          radioDjQueue = outgoingTracks;
           radioIsListening = true;
           radioIsDJ = true;
           renderRadioPlayer();
@@ -1449,24 +1521,24 @@
     els.broadcastPlay.addEventListener("click", async () => {
       if (autoRadioOn && !(await stationCommand("stop"))) return;
       radioIsDJ = true;
-      broadcast({ playing: true, activeTrack: null, position: 0, startedAt: Date.now() });
+      broadcast({ playing: true, activeTrack: null, position: 0, startedAt: Date.now() }, {dj: true});
     });
     els.broadcastPause.addEventListener("click", async () => {
       if (autoRadioOn && !(await stationCommand("stop"))) return;
       radioIsDJ = false;
-      broadcast({ playing: false, position: radioCurrentTime || 0, startedAt: 0 });
+      broadcast({ playing: false, position: radioCurrentTime || 0, startedAt: 0 }, {dj: true});
     });
     els.broadcastNext.addEventListener("click", async () => {
       if (autoRadioOn && !(await stationCommand("stop"))) return;
-      const index = (streamState.index + 1) % Math.max(playlist.length, 1);
+      const index = (streamState.index + 1) % Math.max((radioDjQueue || playlist).length, 1);
       radioIsDJ = true;
-      broadcast({ index, activeTrack: null, playing: true, position: 0, startedAt: Date.now() });
+      broadcast({ index, activeTrack: null, playing: true, position: 0, startedAt: Date.now() }, {dj: true});
     });
     els.broadcastPrev.addEventListener("click", async () => {
       if (autoRadioOn && !(await stationCommand("stop"))) return;
-      const index = (streamState.index - 1 + Math.max(playlist.length, 1)) % Math.max(playlist.length, 1);
+      const index = (streamState.index - 1 + Math.max((radioDjQueue || playlist).length, 1)) % Math.max((radioDjQueue || playlist).length, 1);
       radioIsDJ = true;
-      broadcast({ index, activeTrack: null, playing: true, position: 0, startedAt: Date.now() });
+      broadcast({ index, activeTrack: null, playing: true, position: 0, startedAt: Date.now() }, {dj: true});
     });
     els.copyJson.addEventListener("click", () => copy(JSON.stringify(playlist, null, 2), "Playlist JSON copied."));
     els.importJson.addEventListener("click", () => {
