@@ -464,6 +464,22 @@
     @media(max-width:990px) { .studio-layout { grid-template-columns:minmax(0,1fr) minmax(265px,320px); gap:12px; } .workspace-tab { font-size:12px; padding:11px 12px; } }
     @media(max-width:790px) { .studio-layout { grid-template-columns:1fr; display:flex; flex-direction:column; } .preview-rail { order:-1; width:100%; } .preview-rail-inner { position:static; display:grid; grid-template-columns:minmax(260px,380px) 1fr; align-items:start; gap:10px 18px; } .preview-rail-inner>.panel { grid-row:span 3; } .workspace-main { width:100%; } .preview-shell { min-height:305px; } .workspace-tabs { position:sticky; top:0; z-index:4; background:#091525; padding-top:6px; } }
     @media(max-width:560px) { .mixtap-app { width:calc(100% - 22px); padding-top:14px; } .mixtap-app header { align-items:flex-start; flex-direction:column; gap:9px; } .mixtap-app header h1 { font-size:32px; } .app-overview-strip { padding:10px; } .strip-button { display:none; } .preview-rail-inner { display:block; } .preview-rail-inner>.panel { margin-bottom:12px; } .preview-helper,.preview-refresh,.preview-tip { margin-bottom:10px; } .preview-shell { padding:12px 8px 18px; min-height:300px; } .workspace-tab { padding:11px 12px; } .listen-options,.saved-mixes { grid-template-columns:1fr; } .overview-panel .panel-body { padding:18px; } }
+    /* v1.2.4 compact playlist editor */
+    .playlist-picker { display:grid; grid-template-columns:minmax(0,1fr) 40px 40px; align-items:end; gap:8px; margin-bottom:12px; }
+    .playlist-picker .field { min-width:0; }
+    .playlist-icon { height:40px; min-width:40px; padding:2px; font-size:19px; }
+    .playlist-source-switch { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+    .playlist-source-switch .btn[aria-pressed="true"] { border-color:#83e8d0; box-shadow:inset 0 2px #72efc4; }
+    .playlist-source-panel { border:1px solid #36536b; border-radius:8px; padding:14px; background:#0c1b32; display:grid; gap:8px; }
+    .playlist-source-panel[hidden] { display:none!important; }
+    .playlist-source-panel>label { color:#cce8ea; font-size:12px; font-weight:700; }
+    .playlist-add-row { display:flex; gap:9px; flex-wrap:wrap; }
+    .playlist-add-row select { flex:1 1 210px; min-width:0; }
+    .playlist-type-note { color:#98ead5; font-size:12px; margin-bottom:10px; }
+    .playlist-save-footer { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px; padding-top:14px; margin-top:16px; border-top:1px solid #344961; }
+    .playlist-save-footer span { color:#a6c0cd; font-size:12px; }
+    .playlist-save-footer .btn { min-width:135px; }
+    @media(max-width:560px) { .playlist-picker { gap:5px; } .playlist-save-footer .btn { width:100%; } }
     </style>
 </head>
 <body>
@@ -473,7 +489,7 @@
 <h1>Mixtap <span class="brand-accent">96</span></h1>
 <p class="lede">Your music. Your station. One retro control desk.</p>
 </div>
-<div class="badge">Self-hosted ljas.ca · v1.2.3</div>
+<div class="badge">Self-hosted ljas.ca · v1.2.4</div>
 </header>
     <div class="app-overview-strip" role="status" aria-live="polite">
       <div class="broadcast-dot" aria-hidden="true"></div>
@@ -505,39 +521,40 @@
           </div>
         </section>
         <section class="workspace-panel" id="tab-playlists" role="tabpanel" aria-labelledby="tab-button-playlists" hidden>
-          <div class="section-intro"><span class="section-eyebrow">MIX TAPE DESK</span><h2>Build &amp; save a playlist</h2><p>Keep mixes organized here. Editing a mix won't affect the live radio until you choose to publish or broadcast it. <button class="text-link" data-open-tab="access" type="button">Unlock admin access ↗</button></p></div>
-          <section class="panel studio-card"><h2>Saved mixes</h2><div class="panel-body"><div class="saved-mixes">
-<div class="field"><label for="savedPlaylistSelect">Saved playlists</label><select id="savedPlaylistSelect"><option value="">Choose a saved mix...</option></select></div>
-<div class="field"><label for="playlistName">Playlist name</label><input id="playlistName" maxlength="70" placeholder="Friday night arcade"/></div>
-<div class="actions"><button class="btn" id="loadSavedPlaylist" type="button">Load mix</button><button class="btn" id="saveNamedPlaylist" type="button">Save mix</button><button class="btn" id="saveNewPlaylist" type="button">Save as new</button><button class="btn" id="deleteSavedPlaylist" type="button">Delete saved mix</button><button class="btn primary" id="playSavedOnRadio" type="button">Play on Radio</button></div>
-<p class="note" id="playlistStatus" role="status">Saved mixes live on your Mixtap server. Editing your local queue doesn't interrupt the broadcast.</p>
-</div></div></section>
-          <section class="panel studio-card"><h2>Add tracks</h2><div class="panel-body"><div class="form">
-<div class="field">
-<label for="provider">Source</label>
-<select id="provider">
-<option value="auto">Auto detect</option>
-<option value="youtube">YouTube</option>
-<option value="spotify">Spotify</option>
-</select>
+<div class="section-intro"><span class="section-eyebrow">PLAYLIST EDITOR</span><h2>Playlists</h2><p>Choose a saved playlist or press + to start a new one. Your live Radio is unchanged until you broadcast a mix.</p></div>
+<section class="panel studio-card"><div class="panel-body">
+<div class="playlist-picker">
+<div class="field"><label for="savedPlaylistSelect">Playlist</label><select id="savedPlaylistSelect"><option value="">＋ New playlist</option></select></div>
+<button class="btn playlist-icon" id="newPlaylist" type="button" title="New playlist" aria-label="Create a new playlist">＋</button>
+<button class="btn playlist-icon" id="deleteSavedPlaylist" type="button" title="Delete saved playlist" aria-label="Delete selected saved playlist">⌫</button></div>
+<div class="field"><label for="playlistName">Playlist name</label><input id="playlistName" maxlength="70" placeholder="Friday night arcade"></div>
+<p class="note" id="playlistStatus" role="status">Select a playlist or start fresh. Unlock Admin access to save to Mixtap.</p>
+</div></section>
+<section class="panel studio-card"><h2>Add music</h2><div class="panel-body">
+<div class="playlist-source-switch" role="group" aria-label="Music source">
+<button class="btn primary" id="sourceUploaded" type="button" aria-pressed="true">♫ Music library</button>
+<button class="btn" id="sourceLinks" type="button" aria-pressed="false">▶ YouTube / Spotify</button></div>
+<div class="playlist-source-panel" id="playlistUploadedPanel">
+<label for="playlistAudioSelect">Choose from uploaded music</label>
+<div class="playlist-add-row"><select id="playlistAudioSelect"><option value="">Loading music library...</option></select>
+<button class="btn" id="addLibraryTrack" type="button">＋ Add song</button></div>
+<p class="note">Uploaded songs are labelled Music library. Use the Music library tab to upload more files.</p>
 </div>
-<div class="field">
-<label for="title">Display title</label>
-<input id="title" placeholder="Auto-filled from the link"/>
+<div class="playlist-source-panel" id="playlistLinksPanel" hidden>
+<div class="form"><div class="field"><label for="provider">Source</label><select id="provider"><option value="auto">Auto detect</option><option value="youtube">YouTube</option><option value="spotify">Spotify</option></select></div>
+<div class="field"><label for="title">Title (optional)</label><input id="title" placeholder="Automatically detected"></div>
+<div class="field full"><label for="url">YouTube video / playlist or Spotify URL</label><input id="url" placeholder="Paste a YouTube or Spotify link"></div></div>
+<div class="actions"><button class="btn primary" id="addTrack" type="button">＋ Add / Import</button><button class="btn" id="refreshMetadata" type="button">Refresh titles</button></div>
+<p class="note">YouTube playlist links import individual videos when a YouTube Data API key is configured on the server. Up to 500 songs per playlist. Spotify links use embeds.</p>
 </div>
-<div class="field full">
-<label for="url">YouTube video, YouTube playlist, or Spotify URL</label>
-<input id="url" placeholder="https://www.youtube.com/watch?v=... or https://open.spotify.com/track/..."/>
-</div>
-</div><div class="actions">
-<button class="btn primary" id="addTrack" type="button">Add Track</button>
-<button class="btn" id="refreshMetadata" type="button">Fix Titles</button>
-<button class="btn" id="loadDemo" type="button">Load Demo Mix</button>
-<button class="btn warn" id="clearTracks" type="button">Clear</button>
-</div><div aria-live="polite" class="status" id="status"></div></div></section>
-          <section class="panel studio-card"><h2>Current mix <span class="tiny-count" id="mixCountLabel">0 tracks</span></h2><div class="panel-body"><div class="tracks" id="tracks"></div></div></section>
-        </section>
-        <section class="workspace-panel" id="tab-library" role="tabpanel" aria-labelledby="tab-button-library" hidden>
+<div class="status" id="status" aria-live="polite"></div>
+</div></section>
+<section class="panel studio-card"><h2>Playlist songs <span class="tiny-count" id="mixCountLabel">0 tracks</span></h2>
+<div class="panel-body"><p class="playlist-type-note" id="mixTypeLabel">New playlist</p><div class="tracks" id="tracks"></div>
+<div class="playlist-save-footer"><span>Saving doesn't interrupt the live Radio.</span>
+<button class="btn primary" id="saveNamedPlaylist" type="button">Save playlist</button></div></div></section>
+</section>
+<section class="workspace-panel" id="tab-library" role="tabpanel" aria-labelledby="tab-button-library" hidden>
           <div class="section-intro"><span class="section-eyebrow">YOUR COLLECTION</span><h2>Music library</h2><p>Upload audio files to the Mixtap server, then add them to a mix. Existing uploaded songs are preserved across app updates. <button class="text-link" data-open-tab="access" type="button">Unlock uploads ↗</button></p></div>
           <section class="panel studio-card"><div class="panel-body"><div class="upload-library">
 <h3>♫ Your music library</h3>
@@ -560,10 +577,10 @@
 <div class="onair-frame" id="radioPlayerBox"><div id="radioPlayerIdle">♫ Tune in to the live broadcast or press Play to start broadcasting your selected playlist.</div></div>
 <div class="auto-radio-box radio-source-box">
 <strong>Choose what plays on Radio</strong>
-<p class="note">Broadcast your uploaded audio, YouTube links, Spotify links, or a mix of both services. Everyone's Radio widget follows the published station.</p>
+<p class="note">Choose a playlist. Media library runs 24/7 from uploaded songs; Stream playlist uses YouTube and Spotify embeds.</p>
 <div class="radio-source-grid">
   <div class="field"><label for="radioSource">Radio music source</label>
-    <select id="radioSource"><option value="upload">Uploaded music · 24/7</option><option value="youtube">YouTube links</option><option value="spotify">Spotify links</option><option value="links">YouTube + Spotify links</option></select>
+    <select id="radioSource"><option value="upload">Media library playlist · 24/7</option><option value="stream">Stream playlist · YouTube / Spotify</option></select>
   </div>
   <div class="field"><label for="radioMixSelect">Choose a playlist to broadcast</label>
     <select id="radioMixSelect"><option value="current">Current editor mix</option></select>
@@ -709,13 +726,17 @@
       localTrackCount: document.querySelector("#localTrackCount"),
       sharedTrackCount: document.querySelector("#sharedTrackCount"),
       savedPlaylistSelect: document.querySelector("#savedPlaylistSelect"),
+      newPlaylist: document.querySelector("#newPlaylist"),
+      sourceUploaded: document.querySelector("#sourceUploaded"),
+      sourceLinks: document.querySelector("#sourceLinks"),
+      playlistUploadedPanel: document.querySelector("#playlistUploadedPanel"),
+      playlistLinksPanel: document.querySelector("#playlistLinksPanel"),
+      playlistAudioSelect: document.querySelector("#playlistAudioSelect"),
+      addLibraryTrack: document.querySelector("#addLibraryTrack"),
       playlistName: document.querySelector("#playlistName"),
       playlistStatus: document.querySelector("#playlistStatus"),
-      loadSavedPlaylist: document.querySelector("#loadSavedPlaylist"),
       saveNamedPlaylist: document.querySelector("#saveNamedPlaylist"),
-      saveNewPlaylist: document.querySelector("#saveNewPlaylist"),
       deleteSavedPlaylist: document.querySelector("#deleteSavedPlaylist"),
-      playSavedOnRadio: document.querySelector("#playSavedOnRadio"),
       radioNowPlaying: document.querySelector("#radioNowPlaying"),
       radioOnAirStatus: document.querySelector("#radioOnAirStatus"),
       radioPlayerBox: document.querySelector("#radioPlayerBox"),
