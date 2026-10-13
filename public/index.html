@@ -1053,7 +1053,7 @@
     function renderTracks() {
       els.tracks.innerHTML = "";
       if (!playlist.length) {
-        els.tracks.innerHTML = `<p class="note">No tracks yet. Add a YouTube or Spotify link, or load the demo mix.</p>`;
+        els.tracks.innerHTML = `<p class="note">Playlist empty. Add music from Music library or YouTube / Spotify above.</p>`;
         return;
       }
 
@@ -1061,7 +1061,7 @@
         const row = document.createElement("div");
         row.className = "track";
         row.innerHTML = `
-          <span class="pill">${track.provider}</span>
+          <span class="pill">${track.provider === "upload" ? "Music library" : track.provider === "youtube" ? "YouTube" : track.provider === "spotify" ? "Spotify" : track.provider}</span>
           <span class="track-main">
             <strong>${escapeHtml(track.title)}</strong>
             <small>${escapeHtml(track.author ? `${track.author} - ${track.url}` : track.url)}</small>
@@ -1111,93 +1111,118 @@
     function render() {
       renderTracks();
       document.querySelector("#mixCountLabel").textContent = `${playlist.length} track${playlist.length === 1 ? "" : "s"}`;
+      document.querySelector("#mixTypeLabel").textContent = "Playlist type: "+classifyPlaylist(playlist);
       renderEmbedCode();
       renderImportExport();
       renderPreview();
     }
 
-    function showPlaylistStatus(text) { els.playlistStatus.textContent = text; }
-
+    function showPlaylistStatus(msg) { els.playlistStatus.textContent = msg; }
+    function classifyPlaylist(tracks) {
+      if (!tracks.length) return "Empty";
+      if (tracks.every(t => t.provider === "upload")) return "Music library";
+      if (tracks.every(t => ["youtube","spotify"].includes(t.provider))) return "Stream";
+      return "Mixed";
+    }
     async function refreshSavedMixes() {
       try {
-        const response = await fetch("/api/playlists", { cache: "no-store" });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const response = await fetch("/api/playlists",{cache:"no-store"});
+        if (!response.ok) throw new Error("HTTP " + response.status);
         savedMixes = (await response.json()).playlists || [];
-        const select = els.savedPlaylistSelect;
-        select.replaceChildren(new Option("Choose a saved mix...", ""));
-        const oldRadioSelection = els.radioMixSelect.value || "current";
-        els.radioMixSelect.replaceChildren(new Option("Current editor mix", "current"));
+        const previousRadio = els.radioMixSelect.value || "current";
+        els.savedPlaylistSelect.replaceChildren(new Option("＋ New playlist",""));
+        els.radioMixSelect.replaceChildren(new Option("Current editor playlist","current"));
         savedMixes.forEach(item => {
-          select.add(new Option(`${item.name} (${item.count})`, item.id));
-          els.radioMixSelect.add(new Option(`${item.name} (${item.count})`, item.id));
+          const label = item.name + " · " + (item.type || "Playlist") + " (" + item.count + ")";
+          els.savedPlaylistSelect.add(new Option(label,item.id));
+          els.radioMixSelect.add(new Option(label,item.id));
         });
-        els.radioMixSelect.value = savedMixes.some(item => item.id === oldRadioSelection) ? oldRadioSelection : "current";
-        select.value = savedMixes.some(item => item.id === selectedPlaylistId) ? selectedPlaylistId : "";
-      } catch (error) { showPlaylistStatus(`Could not load saved playlists: ${error.message}`); }
+        els.savedPlaylistSelect.value = savedMixes.some(p=>p.id===selectedPlaylistId) ? selectedPlaylistId : "";
+        els.radioMixSelect.value = savedMixes.some(p=>p.id===previousRadio) ? previousRadio : "current";
+      } catch(error) { showPlaylistStatus("Could not load saved playlists: "+error.message); }
     }
-    els.savedPlaylistSelect.addEventListener("change", () => {
-      selectedPlaylistId = els.savedPlaylistSelect.value;
-      localStorage.setItem(SELECTED_PLAYLIST_KEY, selectedPlaylistId);
-      els.playlistName.value = savedMixes.find(mix => mix.id === selectedPlaylistId)?.name || "";
-    });
+    function newPlaylist() {
+      if (playlist.length && !window.confirm("Create an empty playlist? Unsaved editor changes will be cleared; saved playlists and the live radio stay intact.")) {
+        els.savedPlaylistSelect.value = selectedPlaylistId; return;
+      }
+      selectedPlaylistId = ""; localStorage.removeItem(SELECTED_PLAYLIST_KEY);
+      els.savedPlaylistSelect.value = ""; els.playlistName.value = "";
+      playlist = []; savePlaylist(); render();
+      showPlaylistStatus("New playlist. Add music, enter a name and select Save playlist.");
+    }
     async function loadNamedPlaylist() {
-      if (!els.savedPlaylistSelect.value) return showPlaylistStatus("Choose a saved mix first.");
-      const response = await fetch(`/api/playlists/${encodeURIComponent(els.savedPlaylistSelect.value)}`);
-      if (!response.ok) return showPlaylistStatus("Could not load that saved mix.");
-      const item = await response.json();
-      playlist = (item.tracks || []).map(normalizeTrack).filter(track => track.provider && track.id);
-      selectedPlaylistId = item.id;
-      localStorage.setItem(SELECTED_PLAYLIST_KEY, selectedPlaylistId);
-      els.playlistName.value = item.name;
-      savePlaylist(); render();
-      showPlaylistStatus(`Loaded ${item.name} locally. Radio is unchanged.`);
-    }
-    async function saveNamedPlaylist(asNew = false) {
-      const name = els.playlistName.value.trim();
-      if (!name) return showPlaylistStatus("Name the mix before saving.");
-      if (!adminPublishingKey) return showPlaylistStatus("Unlock publishing to save playlists on the server.");
-      const id = !asNew && selectedPlaylistId ? selectedPlaylistId : "";
-      const endpoint = id ? `/api/playlists/${encodeURIComponent(id)}` : "/api/playlists";
+      const id = els.savedPlaylistSelect.value;
+      if (!id) return;
       try {
-        const response = await fetch(endpoint, {
-          method: id ? "PUT" : "POST",
-          headers: {"Content-Type": "application/json", "Authorization": `Bearer ${adminPublishingKey}`},
-          body: JSON.stringify({name, tracks: playlist})
+        const response = await fetch("/api/playlists/"+encodeURIComponent(id),{cache:"no-store"});
+        if (!response.ok) throw new Error("Could not load that playlist.");
+        const data = await response.json();
+        playlist = (data.tracks || []).map(normalizeTrack).filter(t=>t.provider&&t.id);
+        selectedPlaylistId = data.id; localStorage.setItem(SELECTED_PLAYLIST_KEY,selectedPlaylistId);
+        els.playlistName.value = data.name;
+        savePlaylist(); render();
+        showPlaylistStatus("Loaded "+data.name+". Live radio is unchanged.");
+      } catch(error) { showPlaylistStatus(error.message); }
+    }
+    els.savedPlaylistSelect.addEventListener("change",()=>{
+      if (els.savedPlaylistSelect.value) loadNamedPlaylist(); else newPlaylist();
+    });
+    els.newPlaylist.addEventListener("click",newPlaylist);
+    async function saveNamedPlaylist() {
+      const name = els.playlistName.value.trim();
+      if (!name) return showPlaylistStatus("Enter a playlist name first.");
+      if (!adminPublishingKey) return showPlaylistStatus("Unlock Admin access before saving.");
+      const id = selectedPlaylistId;
+      try {
+        const response = await fetch(id ? "/api/playlists/"+encodeURIComponent(id) : "/api/playlists",{
+          method:id?"PUT":"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+adminPublishingKey},
+          body:JSON.stringify({name,tracks:playlist})
         });
         const data = await response.json();
-        if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
-        selectedPlaylistId = data.id;
-        localStorage.setItem(SELECTED_PLAYLIST_KEY, selectedPlaylistId);
+        if (!response.ok) throw new Error(data.error || "HTTP "+response.status);
+        selectedPlaylistId = data.id;localStorage.setItem(SELECTED_PLAYLIST_KEY,selectedPlaylistId);
         await refreshSavedMixes();
-        showPlaylistStatus(`Saved ${name} (${playlist.length} tracks) to your server.`);
-      } catch (error) { showPlaylistStatus(`Save failed: ${error.message}`); }
+        showPlaylistStatus("Saved "+name+" · "+classifyPlaylist(playlist)+" ("+playlist.length+" songs).");
+      } catch(error) { showPlaylistStatus("Save failed: "+error.message); }
     }
-    els.loadSavedPlaylist.addEventListener("click", loadNamedPlaylist);
-    els.saveNamedPlaylist.addEventListener("click", () => saveNamedPlaylist(false));
-    els.saveNewPlaylist.addEventListener("click", () => saveNamedPlaylist(true));
-    els.deleteSavedPlaylist.addEventListener("click", async () => {
-      if (!selectedPlaylistId || !adminPublishingKey) return showPlaylistStatus("Choose a saved mix and unlock publishing first.");
-      if (!confirm("Delete this saved mix? The live radio is not affected.")) return;
-      const response = await fetch(`/api/playlists/${encodeURIComponent(selectedPlaylistId)}`, {method: "DELETE", headers: {"Authorization": `Bearer ${adminPublishingKey}`}});
-      if (!response.ok) return showPlaylistStatus("Delete failed; saved mix was preserved.");
-      selectedPlaylistId = ""; localStorage.removeItem(SELECTED_PLAYLIST_KEY);
-      await refreshSavedMixes();
-      showPlaylistStatus("Saved mix deleted. Local queue and live radio are unchanged.");
+    els.saveNamedPlaylist.addEventListener("click",saveNamedPlaylist);
+    els.deleteSavedPlaylist.addEventListener("click",async()=>{
+      if (!selectedPlaylistId || !adminPublishingKey) return showPlaylistStatus("Select a saved playlist and unlock Admin access.");
+      if (!window.confirm("Delete this saved playlist? Your uploaded songs and radio station will not be deleted.")) return;
+      const response=await fetch("/api/playlists/"+encodeURIComponent(selectedPlaylistId),{
+        method:"DELETE",headers:{"Authorization":"Bearer "+adminPublishingKey}});
+      if (!response.ok) return showPlaylistStatus("Could not delete. Saved playlist is intact.");
+      selectedPlaylistId="";localStorage.removeItem(SELECTED_PLAYLIST_KEY);
+      els.playlistName.value="";playlist=[];savePlaylist();render();await refreshSavedMixes();
+      showPlaylistStatus("Playlist deleted. Music library and Radio unchanged.");
     });
-    els.playSavedOnRadio.addEventListener("click", async () => {
-      if (!selectedPlaylistId || !adminPublishingKey) return showPlaylistStatus("Select a saved mix and unlock publishing first.");
-      els.radioMixSelect.value = selectedPlaylistId;
-      const ok = await startSelectedRadioSource();
-      showPlaylistStatus(ok ? "Saved mix is broadcasting from the selected Radio source." : "Couldn't start that mix. Check the Radio Studio status.");
-      activateTab("radio");
+    function setPlaylistMusicSource(mode) {
+      const uploaded=mode==="upload";
+      els.playlistUploadedPanel.hidden=!uploaded;els.playlistLinksPanel.hidden=uploaded;
+      els.sourceUploaded.setAttribute("aria-pressed",String(uploaded));
+      els.sourceLinks.setAttribute("aria-pressed",String(!uploaded));
+      els.sourceUploaded.classList.toggle("primary",uploaded);
+      els.sourceLinks.classList.toggle("primary",!uploaded);
+      if(uploaded) loadAudioLibrary();
+    }
+    els.sourceUploaded.addEventListener("click",()=>setPlaylistMusicSource("upload"));
+    els.sourceLinks.addEventListener("click",()=>setPlaylistMusicSource("links"));
+    els.addLibraryTrack.addEventListener("click",()=>{
+      const song=audioLibrary.find(item=>item.id===els.playlistAudioSelect.value);
+      if(!song) return setStatus("Choose a song in Music library.");
+      if(playlist.length>=500) return setStatus("Maximum 500 songs per playlist.");
+      playlist.push(normalizeTrack(song));saveAndRender("Added "+song.title+" from Music library.");
     });
-
     async function loadAudioLibrary() {
       try {
         const response = await fetch("/api/audio-library", {cache: "no-store"});
         if (!response.ok) throw new Error(`Library returned HTTP ${response.status}`);
         const data = await response.json();
         audioLibrary = data.songs || [];
+        const prior = els.playlistAudioSelect.value;
+        els.playlistAudioSelect.replaceChildren(new Option(audioLibrary.length ? "Choose an uploaded song..." : "No songs uploaded yet",""));
+        audioLibrary.forEach(song=>els.playlistAudioSelect.add(new Option(song.title+(song.author?" · "+song.author:""),song.id)));
+        if(audioLibrary.some(song=>song.id===prior))els.playlistAudioSelect.value=prior;
         els.audioLibraryList.replaceChildren();
         if (!audioLibrary.length) {
           els.audioLibraryList.textContent = "No songs uploaded yet.";
@@ -1516,14 +1541,6 @@
     els.url.addEventListener("paste", () => window.setTimeout(previewMetadata, 80));
     els.url.addEventListener("keydown", (event) => {
       if (event.key === "Enter") addTrack();
-    });
-    els.loadDemo.addEventListener("click", () => {
-      playlist = demoTracks.map(normalizeTrack);
-      saveAndRender("Demo mix loaded.");
-    });
-    els.clearTracks.addEventListener("click", () => {
-      playlist = [];
-      saveAndRender("Playlist cleared.");
     });
     els.copyCode.addEventListener("click", () => copy(els.embedCode.value, "Embed code copied."));
     els.roomId.addEventListener("change", () => {
