@@ -13,7 +13,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const publicRoot = join(__dirname, "public");
 const dataDir = process.env.MIXTAP_DATA_DIR || process.env.DATA_DIR || join(__dirname, "data");
 const adminToken = process.env.MIXTAP_ADMIN_TOKEN || "";
-const APP_VERSION = "1.2.3";
+const APP_VERSION = "1.2.4";
+const MAX_PLAYLIST_TRACKS = 500;
 const publicOrigin = process.env.MIXTAP_PUBLIC_ORIGIN || "https://mixtap.ljas.ca";
 const dataFile = join(dataDir, "rooms.json");
 const playlistsFile = join(dataDir, "saved-playlists.json");
@@ -92,7 +93,7 @@ async function loadPlaylists() {
 }
 
 function safeTracks(value) {
-  return Array.isArray(value) ? value.slice(0, 100).map((track) => ({
+  return Array.isArray(value) ? value.slice(0, MAX_PLAYLIST_TRACKS).map((track) => ({
     title: String(track?.title || "").slice(0, 200),
     provider: String(track?.provider || "").slice(0, 30),
     id: String(track?.id || "").slice(0, 150),
@@ -125,7 +126,8 @@ async function handlePlaylists(req, res, url) {
   const id = match[1];
   if (req.method === "GET") {
     if (!id) {
-      json(res, 200, { playlists: Object.values(savedPlaylists).map(({ id, name, updatedAt, tracks }) => ({ id, name, updatedAt, count: tracks.length })) });
+      json(res, 200, { playlists: Object.values(savedPlaylists).map(({ id, name, updatedAt, tracks }) => ({ id, name, updatedAt, count: tracks.length,
+        type: tracks.length === 0 ? "Empty" : tracks.every(t=>t.provider==="upload") ? "Music library" : tracks.every(t=>["youtube","spotify"].includes(t.provider)) ? "Stream" : "Mixed" })) });
     } else if (savedPlaylists[id]) json(res, 200, savedPlaylists[id]);
     else json(res, 404, { error: "Playlist not found" });
     return;
@@ -135,7 +137,7 @@ async function handlePlaylists(req, res, url) {
     let input;
     try { input = JSON.parse(await readBody(req) || "{}"); } catch { json(res, 400, { error: "Invalid JSON" }); return; }
     const name = String(input.name || "").trim().slice(0, 70);
-    if (!name || !Array.isArray(input.tracks) || input.tracks.length > 100) { json(res, 400, { error: "Provide a playlist name and up to 100 tracks" }); return; }
+    if (!name || !Array.isArray(input.tracks) || input.tracks.length > MAX_PLAYLIST_TRACKS) { json(res, 400, { error: "Provide a playlist name and up to 500 tracks" }); return; }
     const item = { id, name, tracks: safeTracks(input.tracks), updatedAt: Date.now() };
     try { await persistPlaylists(previous => ({ ...previous, [id]: item })); }
     catch { json(res, 503, { error: "Playlist storage failed; previous saved playlists remain intact" }); return; }
@@ -146,7 +148,7 @@ async function handlePlaylists(req, res, url) {
     let input;
     try { input = JSON.parse(await readBody(req) || "{}"); } catch { json(res, 400, { error: "Invalid JSON" }); return; }
     const name = String(input.name || "").trim().slice(0, 70);
-    if (!name || !Array.isArray(input.tracks) || input.tracks.length > 100) { json(res, 400, { error: "Provide a playlist name and up to 100 tracks" }); return; }
+    if (!name || !Array.isArray(input.tracks) || input.tracks.length > MAX_PLAYLIST_TRACKS) { json(res, 400, { error: "Provide a playlist name and up to 500 tracks" }); return; }
     const newId = randomUUID();
     const item = { id: newId, name, tracks: safeTracks(input.tracks), updatedAt: Date.now() };
     try { await persistPlaylists(previous => ({ ...previous, [newId]: item })); }
@@ -522,6 +524,64 @@ async function lookupMetadata(rawUrl) {
   };
 }
 
+
+function youtubePlaylistId(raw) {
+  try {
+    const u=new URL(String(raw||""));
+    if(u.protocol!=="https:" || !["youtube.com","www.youtube.com","m.youtube.com","music.youtube.com"].includes(u.hostname.toLowerCase()) || u.username || u.password) return "";
+    const id=u.searchParams.get("list")||"";
+    return /^[A-Za-z0-9_-]{8,100}$/.test(id)?id:"";
+  }catch{return "";}
+}
+// The official YouTube Data API paginates to 50 playlist items per request.
+// The key is held on the server only and never sent to the browser.
+async function handleYoutubePlaylistImport(req,res) {
+  if(req.method==="OPTIONS"){send(res,204,"","text/plain; charset=utf-8");return;}
+  if(req.method!=="POST"){json(res,405,{error:"Method not allowed"});return;}
+  if(!verifyAdminRequest(req,res))return;
+  const key=String(process.env.YOUTUBE_API_KEY||"").trim();
+  if(!key){json(res,503,{error:"YouTube playlist importing needs YOUTUBE_API_KEY in your Mixtap LaunchDock environment. This is required to list individual playlist videos reliably."});return;}
+  let input;
+  try{input=JSON.parse(await readBody(req)||"{}");}catch{json(res,400,{error:"Invalid request JSON"});return;}
+  const id=youtubePlaylistId(input.url);
+  if(!id){json(res,400,{error:"Paste a valid HTTPS YouTube playlist link with a list ID."});return;}
+  const tracks=[];
+  let token="",more=false,pages=0;
+  do {
+    const api=new URL("https://www.googleapis.com/youtube/v3/playlistItems");
+    api.searchParams.set("part","snippet,contentDetails");
+    api.searchParams.set("playlistId",id);
+    api.searchParams.set("maxResults","50");
+    api.searchParams.set("key",key);
+    if(token)api.searchParams.set("pageToken",token);
+    let response,data;
+    try{
+      response=await fetch(api,{headers:{"Accept":"application/json"},signal:AbortSignal.timeout(12000)});
+      data=await response.json();
+    }catch{json(res,502,{error:"YouTube could not be reached. No tracks were imported."});return;}
+    if(!response.ok){
+      const reason=response.status===403 ? "Your YouTube API key is invalid, disabled or out of quota." :
+        response.status===404 ? "YouTube playlist not found or not public." : "YouTube playlist lookup failed.";
+      json(res,502,{error:reason+" No tracks were imported."});return;
+    }
+    for(const item of data.items||[]){
+      const snippet=item.snippet||{},videoId=item.contentDetails?.videoId||snippet.resourceId?.videoId||"";
+      const title=String(snippet.title||"").trim();
+      if(!/^[A-Za-z0-9_-]{11}$/.test(videoId) || !title || /^(private video|deleted video)$/i.test(title))continue;
+      tracks.push({title:title.slice(0,200),provider:"youtube",id:videoId,
+        url:"https://www.youtube.com/watch?v="+videoId,author:String(snippet.videoOwnerChannelTitle||snippet.channelTitle||"").slice(0,200),
+        thumbnail:String(snippet.thumbnails?.medium?.url||snippet.thumbnails?.default?.url||"").slice(0,1500),
+        kind:"track",listId:id,duration:0});
+      if(tracks.length>=MAX_PLAYLIST_TRACKS)break;
+    }
+    token=String(data.nextPageToken||"");
+    pages++;
+  }while(token && tracks.length<MAX_PLAYLIST_TRACKS && pages<30);
+  more=Boolean(token);
+  if(!tracks.length){json(res,422,{error:"No public, playable videos were found in this playlist."});return;}
+  json(res,200,{playlistId:id,tracks,count:tracks.length,truncated:more,source:"YouTube Data API"});
+}
+
 async function handleMetadata(req, res, url) {
   if (req.method === "OPTIONS") {
     send(res, 204, "", "text/plain; charset=utf-8");
@@ -647,6 +707,10 @@ createServer(async (req, res) => {
     }
     if (url.pathname === "/api/metadata") {
       await handleMetadata(req, res, url);
+      return;
+    }
+    if (url.pathname === "/api/youtube-playlist/import") {
+      await handleYoutubePlaylistImport(req,res);
       return;
     }
     if (url.pathname === "/api/playlists" || url.pathname.startsWith("/api/playlists/")) {
