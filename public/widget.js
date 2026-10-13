@@ -18,6 +18,7 @@
     mode: "personal",
     listening: true,
     minimized: false,
+    musicOnly: false,
     radioLocalPlaying: false,
     radioLocalSeek: 0,
     radioLocalStartedAt: 0,
@@ -170,7 +171,7 @@
           display: inline-block;
           min-width: 100%;
           padding: 4px 0;
-          animation: r96-scroll 42s linear infinite;
+          animation: r96-scroll 36s linear infinite;
         }
         @keyframes r96-scroll {
           from { transform: translateX(0); }
@@ -178,11 +179,12 @@
         }
         .r96-modebar {
           display: grid;
-          grid-template-columns: 1fr 1fr;
+          grid-template-columns: 1fr 1fr 1.1fr;
           gap: 3px;
           margin: 0 4px 3px;
         }
         .r96-modebar .r96-button { font-size: 10px; min-height: 22px; }
+        .r96-modebar [aria-pressed="true"]:hover { background: #101070; color: #fff; }
         .r96-modebar [aria-pressed="true"] {
           background: #000080;
           color: white;
@@ -237,6 +239,37 @@
         .r96-widget.r96-playing-media .r96-screen iframe,
         .r96-widget.r96-playing-media .r96-screen div { width: 100%; height: 200px; }
         .r96-screen img { width: 100%; height: 100%; object-fit: cover; }
+        /* Music-only is an optional retro visual cover. The provider iframe
+           remains mounted at normal size to preserve playback. */
+        .r96-widget .r96-screen { position: relative; }
+        .r96-music-curtain {
+          position: absolute;
+          inset: 0;
+          z-index: 2;
+          display: none;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+          background: repeating-linear-gradient(0deg, #07100c 0 3px, #102017 3px 4px);
+          box-shadow: inset 0 0 25px #000;
+          color: #6cff9a;
+          font: 700 13px/1.2 "Courier New", monospace;
+          text-shadow: 0 0 6px #258a50;
+          pointer-events: none;
+        }
+        .r96-widget.r96-music-only.r96-playing-media .r96-music-curtain { display: flex; }
+        .r96-music-curtain small { color: #afffc8; font-size: 10px; letter-spacing: .16em; }
+        .r96-widget.r96-playing-media .r96-screen .r96-eq { display: flex; width: auto; height: 44px; align-items: end; gap: 5px; }
+        .r96-eq i { display: block; width: 12px; height: 15px; background: #46ff92;
+          box-shadow: 0 0 5px #00a14b; animation: r96-eq-wave .9s ease-in-out infinite alternate; }
+        .r96-eq i:nth-child(2) { animation-delay: -.3s; }
+        .r96-eq i:nth-child(3) { animation-delay: -.6s; }
+        .r96-eq i:nth-child(4) { animation-delay: -.2s; }
+        .r96-eq i:nth-child(5) { animation-delay: -.5s; }
+        @keyframes r96-eq-wave { from { height: 9px; } to { height: 39px; } }
+        @media (prefers-reduced-motion: reduce) { .r96-eq i { animation: none; height: 19px; } }
+
         .r96-screen .r96-empty-art { display: grid; place-items: center; height: 100%; font-size: 22px; color: #52ff82; }
         /* Windows 95 radio display decorates inactive media only. */
         .r96-widget:not(.r96-playing-media) .r96-screen {
@@ -361,6 +394,7 @@
         <div class="r96-modebar" role="group" aria-label="Listening modes">
           <button class="r96-button" type="button" data-radio aria-pressed="false" title="Follow the Mixtap broadcast">Radio</button>
           <button class="r96-button" type="button" data-personal aria-pressed="false" title="Control your own playback independently">Personal</button>
+          <button class="r96-button" type="button" data-music-only aria-pressed="false" title="Show or hide the retro audio view">Music Only</button>
         </div>
         <div class="r96-status" data-status aria-live="polite"></div>
         <div class="r96-controls">
@@ -392,6 +426,7 @@
     state.mode = state.sync && readModePreference() !== "personal" ? "radio" : "personal";
     state.listening = true;
     state.minimized = false;
+    try { state.musicOnly = window.localStorage.getItem("retro96-music-only") === "true"; } catch (_) { state.musicOnly = false; }
     state.localStartedAt = 0;
     state.radioState = null;
     state.radioVersion = "";
@@ -454,6 +489,8 @@
     root.classList.toggle("r96-playing-media", active);
     root.classList.toggle("r96-spotify-media", active && track?.provider === "spotify");
     root.classList.toggle("r96-docked", state.minimized);
+    root.classList.toggle("r96-music-only", state.musicOnly);
+    root.querySelector("[data-music-only]").setAttribute("aria-pressed", String(state.musicOnly));
     root.querySelector("[data-radio]").setAttribute("aria-pressed", String(radio));
     root.querySelector("[data-personal]").setAttribute("aria-pressed", String(!radio));
     root.querySelector("[data-prev]").disabled = !track || radio;
@@ -595,6 +632,11 @@
     if (seek > 0) embed.searchParams.set("start", String(Math.floor(seek)));
     iframe.src = embed.toString();
     screen.appendChild(iframe);
+    const cover = document.createElement("div");
+    cover.className = "r96-music-curtain";
+    cover.setAttribute("aria-hidden", "true");
+    cover.innerHTML = '<small>RETRO 96 RADIO</small><div class="r96-eq"><i></i><i></i><i></i><i></i><i></i></div><span>♫ AUDIO MODE ♫</span>';
+    screen.appendChild(cover);
     state.player = iframe;
 
     state.ytMessageHandler = function (event) {
@@ -748,6 +790,12 @@
     });
     root.querySelector("[data-radio]").addEventListener("click", () => setListeningMode(root, "radio"));
     root.querySelector("[data-personal]").addEventListener("click", () => setListeningMode(root, "personal"));
+    root.querySelector("[data-music-only]").addEventListener("click", () => {
+      state.musicOnly = !state.musicOnly;
+      try { window.localStorage.setItem("retro96-music-only", String(state.musicOnly)); } catch (_) { /* browser privacy */ }
+      // Keep the mounted iframe and current audio uninterrupted.
+      updateControls(root);
+    });
     root.querySelector("[data-minimize]").addEventListener("click", () => {
       state.compact = !state.compact;
       root.classList.toggle("r96-compact", state.compact);

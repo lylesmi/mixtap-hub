@@ -8,7 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const publicRoot = join(__dirname, "public");
 const dataDir = process.env.MIXTAP_DATA_DIR || process.env.DATA_DIR || join(__dirname, "data");
 const adminToken = process.env.MIXTAP_ADMIN_TOKEN || "";
-const APP_VERSION = "1.1.4";
+const APP_VERSION = "1.1.5";
 const publicOrigin = process.env.MIXTAP_PUBLIC_ORIGIN || "https://mixtap.ljas.ca";
 const dataFile = join(dataDir, "rooms.json");
 const port = Number(process.env.PORT || 8787);
@@ -35,7 +35,7 @@ function headers(type = "application/json; charset=utf-8") {
     "Access-Control-Allow-Methods": "GET, OPTIONS",
     "Cross-Origin-Resource-Policy": "cross-origin",
     "Access-Control-Allow-Headers": "Content-Type",
-    "Cache-Control": type.startsWith("text/javascript") ? "public, max-age=300" : "no-store",
+    "Cache-Control": type.startsWith("text/javascript") ? "no-cache, must-revalidate" : "no-store",
     "X-Content-Type-Options": "nosniff"
   };
 }

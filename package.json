@@ -1,6 +1,6 @@
 {
   "name": "retro96-mixtape-hub-ljas-selfhost",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "private": true,
   "type": "module",
   "description": "Self-hosted Retro 96 Mixtape Hub and floating widget.",
