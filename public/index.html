@@ -385,146 +385,258 @@
     .audio-library-row span { flex:1 1 180px; min-width:0; overflow-wrap:anywhere; font-size:12px; }
     .audio-library-row audio { height:30px; max-width:100%; width:180px; }
     .onair-frame audio { width:100%; margin:24px 0; }
+
+    /* Mixtap v1.2.2 workspace: compact tabbed control desk */
+    :root { --panel: #141b36; --panel-2:#1b2746; --line:rgba(169,203,235,.17); --green:#74f1bf; --pink:#fb68c8; --cyan:#79cfe5; --yellow:#f9db8c; }
+    .mixtap-app { width:min(1380px,calc(100% - 44px)); padding:20px 0 44px; }
+    .mixtap-app header { display:flex; align-items:center; justify-content:space-between; gap:24px; margin:0 0 16px; }
+    .mixtap-app header h1 { font-size:clamp(27px,3.1vw,44px); text-shadow:none; letter-spacing:-.055em; line-height:1.04; text-transform:none; }
+    .brand-accent { color:#7cead1; }
+    .mixtap-app .lede { color:#acbdd0; font-size:13px; }
+    .mixtap-app .badge { padding:6px 11px; font-size:11px; border-radius:6px; }
+    .app-overview-strip { display:flex; gap:12px; align-items:center; padding:12px 16px; margin-bottom:16px; background:linear-gradient(90deg,#152e38,#132038); border:1px solid #316269; border-radius:10px; }
+    .broadcast-dot { width:10px; height:10px; flex:none; border-radius:50%; background:#67edc3; box-shadow:0 0 11px #26f0c166; }
+    .app-overview-strip>div:nth-child(2) { display:grid; gap:1px; min-width:0; flex:1; }
+    .app-overview-strip strong { color:#86e9d3; font:700 10px/1.3 "Courier New",monospace; letter-spacing:.1em; }
+    .app-overview-strip span { font-size:13px; color:#eef5fb; overflow-wrap:anywhere; }
+    .strip-button { font-size:12px; flex:none; }
+    .workspace-tabs { display:flex; gap:5px; overflow-x:auto; scrollbar-width:thin; scrollbar-color:#365878 transparent; padding:0 2px 0; margin-bottom:14px; border-bottom:1px solid #34506b; }
+    .workspace-tab { display:flex; flex:none; align-items:center; gap:8px; border:1px solid #334761; border-bottom:none; background:#101b2c; color:#b7c8d8; padding:12px 16px; border-radius:9px 9px 0 0; font:700 13px/1.2 "Trebuchet MS",Verdana,sans-serif; cursor:pointer; position:relative; }
+    .workspace-tab:hover { background:#1e3046; color:white; }
+    .workspace-tab[aria-selected="true"] { background:#21384b; border-color:#609695; color:#dbfff5; box-shadow:inset 0 3px 0 #79e9cb; }
+    .workspace-tab:focus-visible { outline:2px solid #81f3db; outline-offset:-3px; }
+    .studio-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(290px,360px); align-items:start; gap:18px; }
+    .workspace-main,.preview-rail { min-width:0; }
+    .workspace-panel[hidden] { display:none!important; }
+    .workspace-panel { display:grid; gap:15px; align-content:start; min-width:0; }
+    .workspace-panel>.panel { min-width:0; }
+    .studio-card .panel-body { padding:17px; }
+    .section-intro { padding:9px 4px 0; }
+    .section-intro h2 { color:#f5fbff; font-size:21px; letter-spacing:-.03em; margin:1px 0 3px; text-transform:none; }
+    .section-intro p { color:#b3c4d3; line-height:1.5; font-size:12px; }
+    .section-eyebrow { color:#79e9cb; font:700 10px/1.5 "Courier New",monospace; letter-spacing:.15em; }
+    .panel { background:linear-gradient(180deg,rgba(25,37,62,.97),rgba(16,26,44,.98)); border:1px solid #344961; border-radius:11px; box-shadow:0 10px 24px #0003; }
+    .panel h2 { color:#d7f7ed; border-bottom-color:#31425c; font-size:12px; padding:12px 15px; letter-spacing:.08em; }
+    .panel-body { padding:16px; }
+    .saved-mixes { background:none; border:none; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); padding:0; margin:0; gap:12px; }
+    .saved-mixes .actions { display:flex; flex-wrap:wrap; }
+    .saved-mixes .actions .btn { flex:0 1 auto; }
+    .tiny-count { float:right; color:#9fbac8; font-size:10px; letter-spacing:0; }
+    .upload-library { margin:0; border:0; padding:0; background:transparent; }
+    .upload-library h3 { color:#d7f7ed; font-size:15px; margin:0 0 10px; }
+    .audio-library-list { max-height:420px; }
+    .overview-panel { background:radial-gradient(circle at 88% 12%,#315f6870,transparent 48%),linear-gradient(125deg,#182e43,#152137); }
+    .overview-panel .panel-body { padding:24px; }
+    .overview-title { border:0!important; padding:0!important; text-transform:none!important; font-size:clamp(22px,2.5vw,30px)!important; line-height:1.3; margin:7px 0 9px!important; color:white!important; letter-spacing:-.04em!important; }
+    .overview-description { color:#c6d7e1; max-width:660px; font-size:14px; line-height:1.7; }
+    .listen-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:11px; margin:24px 0 16px; }
+    .listen-choice { display:flex; align-items:center; gap:12px; text-align:left; min-width:0; border:1px solid #46707e; border-radius:11px; padding:15px; background:linear-gradient(145deg,#1d3c4e,#19304a); color:#effbff; cursor:pointer; }
+    .listen-choice:hover { border-color:#84ebca; background:#254b59; }
+    .listen-choice .choice-glyph { background:#2c6666; color:#9df4de; display:grid; place-items:center; flex:none; font-size:19px; width:39px; height:39px; border-radius:10px; }
+    .listen-choice>span:nth-child(2) { display:grid; gap:2px; flex:1; min-width:0; }
+    .listen-choice strong { font-size:15px; }
+    .listen-choice small { color:#bbced8; font-size:11px; line-height:1.45; }
+    .first-steps { border-top:1px solid #43566b; padding-top:15px; margin-top:5px; color:#bdcdd9; font-size:12px; line-height:1.7; }
+    .first-steps strong { color:#ddf8f2; }
+    .text-link { color:#9eefe1; background:none; border:0; padding:0 2px; cursor:pointer; text-decoration:underline; }
+    .preview-rail-inner { position:sticky; top:14px; display:grid; gap:9px; }
+    .preview-rail .panel { overflow:visible; }
+    .preview-shell { min-height:325px; padding:20px 9px 16px; display:flex; justify-content:center; align-items:flex-start; border:1px dashed #416274; border-radius:6px; background:linear-gradient(145deg,#18283d,#0d2030); overflow:visible; }
+    .preview-shell::before { display:none; }
+    .preview-shell .r96-widget { position:relative!important; left:auto!important; top:auto!important; right:auto!important; bottom:auto!important; margin:0 auto; max-width:100%; filter:drop-shadow(4px 5px 2px #0008); }
+    .preview-rail .panel-body { padding:11px; }
+    .preview-rail .panel .note { margin-top:11px; }
+    .preview-helper { display:flex; align-items:center; flex-wrap:wrap; gap:5px 8px; font-size:11px; color:#91aabe; line-height:1.5; }
+    .indicator-pill { display:inline-block; border:1px solid #337d70; color:#97f3d1; border-radius:4px; padding:2px 6px; font:700 10px/1.4 monospace; }
+    .preview-refresh { justify-self:start; font-size:11px; }
+    .preview-tip { color:#91aec1; font-size:11px; line-height:1.55; margin:0; }
+    .radio-studio .panel-body { padding:16px; }
+    .radio-studio .onair-frame { min-height:180px; }
+    #tab-share .panel+.panel { margin-top:0; }
+    #tab-access>.panel { margin-bottom:0!important; }
+    #tab-access .panel-body { padding:18px; }
+    @media(max-width:990px) { .studio-layout { grid-template-columns:minmax(0,1fr) minmax(265px,320px); gap:12px; } .workspace-tab { font-size:12px; padding:11px 12px; } }
+    @media(max-width:790px) { .studio-layout { grid-template-columns:1fr; display:flex; flex-direction:column; } .preview-rail { order:-1; width:100%; } .preview-rail-inner { position:static; display:grid; grid-template-columns:minmax(260px,380px) 1fr; align-items:start; gap:10px 18px; } .preview-rail-inner>.panel { grid-row:span 3; } .workspace-main { width:100%; } .preview-shell { min-height:305px; } .workspace-tabs { position:sticky; top:0; z-index:4; background:#091525; padding-top:6px; } }
+    @media(max-width:560px) { .mixtap-app { width:calc(100% - 22px); padding-top:14px; } .mixtap-app header { align-items:flex-start; flex-direction:column; gap:9px; } .mixtap-app header h1 { font-size:32px; } .app-overview-strip { padding:10px; } .strip-button { display:none; } .preview-rail-inner { display:block; } .preview-rail-inner>.panel { margin-bottom:12px; } .preview-helper,.preview-refresh,.preview-tip { margin-bottom:10px; } .preview-shell { padding:12px 8px 18px; min-height:300px; } .workspace-tab { padding:11px 12px; } .listen-options,.saved-mixes { grid-template-columns:1fr; } .overview-panel .panel-body { padding:18px; } }
     </style>
 </head>
 <body>
-  <main class="wrap">
+  <main class="wrap mixtap-app">
     <header>
-      <div>
-        <h1>Retro 96 Mixtape Hub</h1>
-        <p class="lede">Build a little floating player for your gaming site. Upload your own music or add YouTube and Spotify links, reorder the playlist, preview the widget, then copy the generated snippet into Retro 96.</p>
+<div>
+<h1>Mixtap <span class="brand-accent">96</span></h1>
+<p class="lede">Your music. Your station. One retro control desk.</p>
+</div>
+<div class="badge">Self-hosted ljas.ca · v1.2.2</div>
+</header>
+    <div class="app-overview-strip" role="status" aria-live="polite">
+      <div class="broadcast-dot" aria-hidden="true"></div>
+      <div><strong>STATION MONITOR</strong><span id="stationSummary">Connecting to the radio room…</span></div>
+      <button class="btn strip-button" type="button" data-open-tab="radio">Open Radio Studio ↗</button>
+    </div>
+    <nav class="workspace-tabs" aria-label="Mixtap workspace" role="tablist">
+      <button role="tab" class="workspace-tab" id="tab-button-listen" aria-selected="true" aria-controls="tab-listen" data-workspace-tab="listen">♫ Listen</button>
+      <button role="tab" class="workspace-tab" id="tab-button-playlists" aria-selected="false" aria-controls="tab-playlists" data-workspace-tab="playlists">▤ Playlists</button>
+      <button role="tab" class="workspace-tab" id="tab-button-library" aria-selected="false" aria-controls="tab-library" data-workspace-tab="library">▣ Music library</button>
+      <button role="tab" class="workspace-tab" id="tab-button-radio" aria-selected="false" aria-controls="tab-radio" data-workspace-tab="radio">◉ Radio Studio</button>
+      <button role="tab" class="workspace-tab" id="tab-button-share" aria-selected="false" aria-controls="tab-share" data-workspace-tab="share">↗ Share &amp; embed</button>
+      <button role="tab" class="workspace-tab" id="tab-button-access" aria-selected="false" aria-controls="tab-access" data-workspace-tab="access">⚿ Admin access</button>
+    </nav>
+    <div class="studio-layout">
+      <div class="workspace-main">
+        <section class="workspace-panel" id="tab-listen" role="tabpanel" aria-labelledby="tab-button-listen">
+          <div class="panel overview-panel">
+            <div class="panel-body">
+              <div class="section-eyebrow">WELCOME TO THE MIX</div>
+              <h2 class="overview-title">Your music, your way.</h2>
+              <p class="overview-description">Choose how you want to listen using the player. Both modes use the station's song catalogue. Radio follows the live broadcast. Local lets you pick your own track, pause, skip and adjust the volume without changing anyone else's music.</p>
+              <div class="listen-options">
+                <button class="listen-choice" id="startListenRadio" type="button"><span class="choice-glyph">◉</span><span><strong>Radio</strong><small>Join what is live right now</small></span><span aria-hidden="true">↗</span></button>
+                <button class="listen-choice" id="startListenLocal" type="button"><span class="choice-glyph">♫</span><span><strong>Local</strong><small>Pick any song, your own pace</small></span><span aria-hidden="true">↗</span></button>
+              </div>
+              <div class="first-steps"><strong>New station?</strong> Add music under <button class="text-link" data-open-tab="library" type="button">Music library</button>, build a mix under <button class="text-link" data-open-tab="playlists" type="button">Playlists</button>, then start the shared station under <button class="text-link" data-open-tab="radio" type="button">Radio Studio</button>.</div>
+            </div>
+          </div>
+        </section>
+        <section class="workspace-panel" id="tab-playlists" role="tabpanel" aria-labelledby="tab-button-playlists" hidden>
+          <div class="section-intro"><span class="section-eyebrow">MIX TAPE DESK</span><h2>Build &amp; save a playlist</h2><p>Keep mixes organized here. Editing a mix won't affect the live radio until you choose to publish or broadcast it. <button class="text-link" data-open-tab="access" type="button">Unlock admin access ↗</button></p></div>
+          <section class="panel studio-card"><h2>Saved mixes</h2><div class="panel-body"><div class="saved-mixes">
+<div class="field"><label for="savedPlaylistSelect">Saved playlists</label><select id="savedPlaylistSelect"><option value="">Choose a saved mix...</option></select></div>
+<div class="field"><label for="playlistName">Playlist name</label><input id="playlistName" maxlength="70" placeholder="Friday night arcade"/></div>
+<div class="actions"><button class="btn" id="loadSavedPlaylist" type="button">Load mix</button><button class="btn" id="saveNamedPlaylist" type="button">Save mix</button><button class="btn" id="saveNewPlaylist" type="button">Save as new</button><button class="btn" id="deleteSavedPlaylist" type="button">Delete saved mix</button><button class="btn primary" id="playSavedOnRadio" type="button">Play on Radio</button></div>
+<p class="note" id="playlistStatus" role="status">Saved mixes live on your Mixtap server. Editing your local queue doesn't interrupt the broadcast.</p>
+</div></div></section>
+          <section class="panel studio-card"><h2>Add tracks</h2><div class="panel-body"><div class="form">
+<div class="field">
+<label for="provider">Source</label>
+<select id="provider">
+<option value="auto">Auto detect</option>
+<option value="youtube">YouTube</option>
+<option value="spotify">Spotify</option>
+</select>
+</div>
+<div class="field">
+<label for="title">Display title</label>
+<input id="title" placeholder="Auto-filled from the link"/>
+</div>
+<div class="field full">
+<label for="url">YouTube video, YouTube playlist, or Spotify URL</label>
+<input id="url" placeholder="https://www.youtube.com/watch?v=... or https://open.spotify.com/track/..."/>
+</div>
+</div><div class="actions">
+<button class="btn primary" id="addTrack" type="button">Add Track</button>
+<button class="btn" id="refreshMetadata" type="button">Fix Titles</button>
+<button class="btn" id="loadDemo" type="button">Load Demo Mix</button>
+<button class="btn warn" id="clearTracks" type="button">Clear</button>
+</div><div aria-live="polite" class="status" id="status"></div></div></section>
+          <section class="panel studio-card"><h2>Current mix <span class="tiny-count" id="mixCountLabel">0 tracks</span></h2><div class="panel-body"><div class="tracks" id="tracks"></div></div></section>
+        </section>
+        <section class="workspace-panel" id="tab-library" role="tabpanel" aria-labelledby="tab-button-library" hidden>
+          <div class="section-intro"><span class="section-eyebrow">YOUR COLLECTION</span><h2>Music library</h2><p>Upload audio files to the Mixtap server, then add them to a mix. Existing uploaded songs are preserved across app updates. <button class="text-link" data-open-tab="access" type="button">Unlock uploads ↗</button></p></div>
+          <section class="panel studio-card"><div class="panel-body"><div class="upload-library">
+<h3>♫ Your music library</h3>
+<div class="actions" style="align-items:center">
+<input accept=".mp3,.m4a,.ogg,.wav,audio/mpeg,audio/mp4,audio/ogg,audio/wav" aria-label="Choose music to upload" id="audioUploadFiles" multiple="" style="flex:1;min-width:180px" type="file"/>
+<button class="btn primary" id="uploadAudio" type="button">Upload songs</button>
+<button class="btn" id="refreshAudioLibrary" type="button">Refresh library</button>
+</div>
+<p class="note">MP3, M4A, OGG or WAV, up to 45 MB each and 1 GB total. Unlock publishing first. Your uploaded music stays on Mixtap's persistent server storage and is streamable by radio listeners. Upload only music you have permission to broadcast.</p>
+<p class="note" id="audioUploadStatus" role="status">Ready to upload.</p>
+<div class="audio-library-list" id="audioLibraryList"></div>
+</div></div></section>
+        </section>
+        <section class="workspace-panel" id="tab-radio" role="tabpanel" aria-labelledby="tab-button-radio" hidden>
+          <div class="section-intro"><span class="section-eyebrow">MASTER BROADCAST</span><h2>Radio Studio</h2><p>DJ controls change the shared station for everyone. Listening through your player doesn't affect the broadcast.</p></div>
+          <section class="panel radio-studio" id="radioStudio">
+<h2>📻 Radio Studio — On Air</h2>
+<div class="panel-body">
+<div class="radio-onair"><strong id="radioNowPlaying">Checking live broadcast...</strong><span id="radioOnAirStatus">The shared radio is independent of your local playlist.</span></div>
+<div class="onair-frame" id="radioPlayerBox"><div id="radioPlayerIdle">♫ Tune in to the live broadcast or press Play to start broadcasting your selected playlist.</div></div>
+<div class="auto-radio-box">
+<strong>24/7 Auto Radio · Your uploaded music</strong>
+<p class="note">Start a continuous broadcast from the uploaded songs in your current mix. It keeps advancing on the server even when this browser is closed, and listeners join the track currently on air. YouTube and Spotify links still use the DJ controls below.</p>
+<div class="actions"><button class="btn primary" id="startAutoRadio" type="button">▶ Start 24/7 Radio</button><button class="btn" id="stopAutoRadio" type="button">■ Stop 24/7 Radio</button></div>
+<p class="note" id="autoRadioStatus" role="status">Checking station...</p>
+</div>
+<div class="actions"><button class="btn" id="radioListen" type="button">♫ Listen live</button><button class="btn" id="radioStopListening" type="button">Stop listening locally</button></div>
+<div class="actions broadcast-actions">
+<button class="btn primary" id="broadcastPlay" type="button">Play</button>
+<button class="btn" id="broadcastPause" type="button">Pause</button>
+<button class="btn" id="broadcastNext" type="button">Next</button>
+<button class="btn" id="broadcastPrev" type="button">Prev</button>
+</div>
+<p class="note">For YouTube and Spotify, this is the DJ player. Keep this tab open for YouTube playlist track-change reporting and automatic Next at the end of a single video. Radio listeners join the current video and approximate live timestamp. Browser autoplay, YouTube embed restrictions and Spotify controls still apply.</p>
+</div>
+</section>
+        </section>
+        <section class="workspace-panel" id="tab-share" role="tabpanel" aria-labelledby="tab-button-share" hidden>
+          <div class="section-intro"><span class="section-eyebrow">SHARE THE SOUND</span><h2>Embed &amp; backup</h2><p>Install the floating player in your games, or export your playlists.</p></div>
+          <aside class="panel">
+<h2>Embed Code</h2>
+<div class="panel-body">
+<div class="field">
+<label for="roomId">Shared room ID</label>
+<input id="roomId" placeholder="retro96" value="retro96"/>
+</div>
+<p class="note">Use the same room ID in the hub and widget when you want everyone on Retro 96 to follow the same stream state.</p>
+<textarea class="codebox" id="embedCode" readonly=""></textarea>
+<div class="actions">
+<button class="btn primary" id="copyCode" type="button">Copy Embed Code</button>
+<button class="btn" id="downloadConfig" type="button">Download Playlist JSON</button>
+</div>
+<p class="note">Paste this before the closing <code>&lt;/body&gt;</code> tag on Retro 96. The widget is draggable, minimized with the underscore button, and closed with the x button.</p>
+</div>
+</aside>
+          <section class="panel">
+<h2>Import or Export</h2>
+<div class="panel-body">
+<textarea class="codebox" id="importBox" placeholder="Paste playlist JSON here to import it."></textarea>
+<div class="actions">
+<button class="btn" id="importJson" type="button">Import JSON</button>
+<button class="btn" id="copyJson" type="button">Copy Playlist JSON</button>
+</div>
+<p class="note">This self-hosted version saves the shared room on your server. Any widget using the same hub URL and room ID follows the hub controls.</p>
+</div>
+</section>
+        </section>
+        <section class="workspace-panel" id="tab-access" role="tabpanel" aria-labelledby="tab-button-access" hidden>
+          <div class="section-intro"><span class="section-eyebrow">OWNER CONTROLS</span><h2>Admin access</h2><p>Unlock writing playlists, uploading songs, and changing the shared station. Listeners don't need an administrator key.</p></div>
+          <section aria-label="Mixtape publishing access" class="panel" style="margin-bottom:20px">
+<div class="panel-body">
+<label for="publishingKey"><strong>Publishing key</strong> (your private LaunchDock admin key)</label>
+<div class="actions" style="margin-top:8px;align-items:center">
+<input autocomplete="off" id="publishingKey" placeholder="Enter key to publish playlist changes" style="flex:1;min-width:220px" type="password"/>
+<button class="btn primary" id="usePublishingKey" type="button">Unlock publishing</button>
+<button class="btn" id="forgetPublishingKey" type="button">Lock</button>
+</div>
+<p aria-live="polite" class="note publish-feedback" data-state="locked" id="publishingStatus" role="status">Locked. Enter your private key to verify publishing access.</p>
+<div aria-live="polite" class="publish-counts">
+<span>In this browser: <strong id="localTrackCount">0</strong> songs</span>
+<span>On Retro Room: <strong id="sharedTrackCount">checking...</strong> songs</span>
+</div>
+<div class="actions" style="margin-top:10px">
+<button class="btn primary" disabled="" id="publishQueue" type="button">Publish my queue to Retro Room</button>
+<button class="btn" id="checkSharedQueue" type="button">Check radio playlist</button>
+</div>
+<p class="note">Songs saved in this browser are private until you publish them to the shared room. Playing or pausing also updates the shared room after publishing is unlocked.</p>
+</div>
+</section>
+        </section>
       </div>
-      <div class="badge">Self-hosted ljas.ca · v1.2.1</div>
-    </header>
-
-    <section class="panel" aria-label="Mixtape publishing access" style="margin-bottom:20px">
-      <div class="panel-body">
-        <label for="publishingKey"><strong>Publishing key</strong> (your private LaunchDock admin key)</label>
-        <div class="actions" style="margin-top:8px;align-items:center">
-          <input id="publishingKey" type="password" autocomplete="off" placeholder="Enter key to publish playlist changes" style="flex:1;min-width:220px" />
-          <button id="usePublishingKey" class="btn primary" type="button">Unlock publishing</button>
-          <button id="forgetPublishingKey" class="btn" type="button">Lock</button>
-        </div>
-        <p class="note publish-feedback" id="publishingStatus" role="status" aria-live="polite" data-state="locked">Locked. Enter your private key to verify publishing access.</p>
-        <div class="publish-counts" aria-live="polite">
-          <span>In this browser: <strong id="localTrackCount">0</strong> songs</span>
-          <span>On Retro Room: <strong id="sharedTrackCount">checking...</strong> songs</span>
-        </div>
-        <div class="actions" style="margin-top:10px">
-          <button class="btn primary" type="button" id="publishQueue" disabled>Publish my queue to Retro Room</button>
-          <button class="btn" type="button" id="checkSharedQueue">Check radio playlist</button>
-        </div>
-        <p class="note">Songs saved in this browser are private until you publish them to the shared room. Playing or pausing also updates the shared room after publishing is unlocked.</p>
-      </div>
-    </section>
-    <div class="grid">
-      <section class="panel">
-        <h2>Playlist Builder</h2>
-        <div class="panel-body">
-          <div class="saved-mixes">
-            <div class="field"><label for="savedPlaylistSelect">Saved playlists</label><select id="savedPlaylistSelect"><option value="">Choose a saved mix...</option></select></div>
-            <div class="field"><label for="playlistName">Playlist name</label><input id="playlistName" maxlength="70" placeholder="Friday night arcade"></div>
-            <div class="actions"><button class="btn" id="loadSavedPlaylist" type="button">Load mix</button><button class="btn" id="saveNamedPlaylist" type="button">Save mix</button><button class="btn" id="saveNewPlaylist" type="button">Save as new</button><button class="btn" id="deleteSavedPlaylist" type="button">Delete saved mix</button><button class="btn primary" id="playSavedOnRadio" type="button">Play on Radio</button></div>
-            <p class="note" id="playlistStatus" role="status">Saved mixes live on your Mixtap server. Editing your local queue doesn't interrupt the broadcast.</p>
-          </div>
-          <div class="upload-library">
-            <h3>♫ Your music library</h3>
-            <div class="actions" style="align-items:center">
-              <input id="audioUploadFiles" type="file" multiple accept=".mp3,.m4a,.ogg,.wav,audio/mpeg,audio/mp4,audio/ogg,audio/wav" aria-label="Choose music to upload" style="flex:1;min-width:180px">
-              <button class="btn primary" type="button" id="uploadAudio">Upload songs</button>
-              <button class="btn" type="button" id="refreshAudioLibrary">Refresh library</button>
-            </div>
-            <p class="note">MP3, M4A, OGG or WAV, up to 45 MB each and 1 GB total. Unlock publishing first. Your uploaded music stays on Mixtap's persistent server storage and is streamable by radio listeners. Upload only music you have permission to broadcast.</p>
-            <p class="note" id="audioUploadStatus" role="status">Ready to upload.</p>
-            <div id="audioLibraryList" class="audio-library-list"></div>
-          </div>
-          <div class="form">
-            <div class="field">
-              <label for="provider">Source</label>
-              <select id="provider">
-                <option value="auto">Auto detect</option>
-                <option value="youtube">YouTube</option>
-                <option value="spotify">Spotify</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="title">Display title</label>
-              <input id="title" placeholder="Auto-filled from the link">
-            </div>
-            <div class="field full">
-              <label for="url">YouTube video, YouTube playlist, or Spotify URL</label>
-              <input id="url" placeholder="https://www.youtube.com/watch?v=... or https://open.spotify.com/track/...">
-            </div>
-          </div>
-          <div class="actions">
-            <button class="btn primary" id="addTrack" type="button">Add Track</button>
-            <button class="btn" id="refreshMetadata" type="button">Fix Titles</button>
-            <button class="btn" id="loadDemo" type="button">Load Demo Mix</button>
-            <button class="btn warn" id="clearTracks" type="button">Clear</button>
-          </div>
-          <div class="status" id="status" aria-live="polite"></div>
-          <div class="tracks" id="tracks"></div>
-        </div>
-      </section>
-
-      <aside class="panel">
-        <h2>Embed Code</h2>
-        <div class="panel-body">
-          <div class="field">
-            <label for="roomId">Shared room ID</label>
-            <input id="roomId" value="retro96" placeholder="retro96">
-          </div>
-          <p class="note">Use the same room ID in the hub and widget when you want everyone on Retro 96 to follow the same stream state.</p>
-          <textarea class="codebox" id="embedCode" readonly></textarea>
-          <div class="actions">
-            <button class="btn primary" id="copyCode" type="button">Copy Embed Code</button>
-            <button class="btn" id="downloadConfig" type="button">Download Playlist JSON</button>
-          </div>
-          <p class="note">Paste this before the closing <code>&lt;/body&gt;</code> tag on Retro 96. The widget is draggable, minimized with the underscore button, and closed with the x button.</p>
+      <aside class="preview-rail" aria-label="Always visible Mixtap widget">
+        <div class="preview-rail-inner">
+          <section class="panel">
+<h2>Floating player · always on</h2>
+<div class="panel-body">
+<div class="preview-shell" id="preview"></div>
+<p class="note">Use Radio to follow what’s playing now, or Local to select your own song. The player stays visible across every tab.</p>
+</div>
+</section>
+          <div class="preview-helper"><span class="indicator-pill">LIVE PREVIEW</span><span>Resize from the lower-right corner. The player stays open while you switch tabs.</span></div>
+          <button class="btn preview-refresh" type="button" id="previewReloadQueue">↻ Load editor mix into Local</button>
+          <p class="preview-tip">In <strong>Radio</strong>, everyone follows the broadcast. <strong>Local</strong> listeners choose from the published songs; this editor preview can also audition your unsent mix.</p>
         </div>
       </aside>
-
-      <section class="panel">
-        <h2>Local Player Preview</h2>
-        <div class="panel-body">
-          <div class="preview-shell" id="preview"></div>
-          <p class="note">Local preview has its own playback and track selection. Use the Radio Studio below to control the shared broadcast.</p>
-        </div>
-      </section>
-
-      <section class="panel radio-studio" id="radioStudio">
-        <h2>📻 Radio Studio — On Air</h2>
-        <div class="panel-body">
-          <div class="radio-onair"><strong id="radioNowPlaying">Checking live broadcast...</strong><span id="radioOnAirStatus">The shared radio is independent of your local playlist.</span></div>
-          <div class="onair-frame" id="radioPlayerBox"><div id="radioPlayerIdle">♫ Tune in to the live broadcast or press Play to start broadcasting your selected playlist.</div></div>
-          <div class="auto-radio-box">
-            <strong>24/7 Auto Radio · Your uploaded music</strong>
-            <p class="note">Start a continuous broadcast from the uploaded songs in your current mix. It keeps advancing on the server even when this browser is closed, and listeners join the track currently on air. YouTube and Spotify links still use the DJ controls below.</p>
-            <div class="actions"><button class="btn primary" id="startAutoRadio" type="button">▶ Start 24/7 Radio</button><button class="btn" id="stopAutoRadio" type="button">■ Stop 24/7 Radio</button></div>
-            <p class="note" id="autoRadioStatus" role="status">Checking station...</p>
-          </div>
-          <div class="actions"><button class="btn" type="button" id="radioListen">♫ Listen live</button><button class="btn" type="button" id="radioStopListening">Stop listening locally</button></div>
-          <div class="actions broadcast-actions">
-            <button class="btn primary" id="broadcastPlay" type="button">Play</button>
-            <button class="btn" id="broadcastPause" type="button">Pause</button>
-            <button class="btn" id="broadcastNext" type="button">Next</button>
-            <button class="btn" id="broadcastPrev" type="button">Prev</button>
-          </div>
-          <p class="note">For YouTube and Spotify, this is the DJ player. Keep this tab open for YouTube playlist track-change reporting and automatic Next at the end of a single video. Radio listeners join the current video and approximate live timestamp. Browser autoplay, YouTube embed restrictions and Spotify controls still apply.</p>
-        </div>
-      </section>
-
-      <section class="panel">
-        <h2>Import or Export</h2>
-        <div class="panel-body">
-          <textarea class="codebox" id="importBox" placeholder="Paste playlist JSON here to import it."></textarea>
-          <div class="actions">
-            <button class="btn" id="importJson" type="button">Import JSON</button>
-            <button class="btn" id="copyJson" type="button">Copy Playlist JSON</button>
-          </div>
-          <p class="note">This self-hosted version saves the shared room on your server. Any widget using the same hub URL and room ID follows the hub controls.</p>
-        </div>
-      </section>
     </div>
   </main>
 
@@ -931,11 +1043,23 @@
       els.embedCode.value = `<script src="${src}" data-retro96-player data-sync="true" data-hub-url="${hubUrl}" data-room="${room}" data-playlist="${encoded}"><\/script>`;
     }
 
+    let previewWidget = null;
     function renderPreview() {
-      els.preview.querySelectorAll(".r96-widget").forEach((node) => node.remove());
-      if (!playlist.length || !window.Retro96Player) return;
-      const widget = window.Retro96Player.create({ playlist });
-      els.preview.appendChild(widget);
+      if (!window.Retro96Player) return;
+      if (!previewWidget || !previewWidget.isConnected) {
+        previewWidget = window.Retro96Player.create({
+          playlist,
+          room: els.roomId.value.trim() || "retro96",
+          hubUrl: window.location.origin,
+          sync: true,
+          initialMode: "personal"
+        });
+        els.preview.appendChild(previewWidget);
+      } else if (playlist.length) {
+        // A newly built mix appears immediately in the Local preview,
+        // without publishing it or changing the radio station.
+        window.Retro96Player.updatePlaylist(playlist, { preferOwnPlaylist: true });
+      }
     }
 
     function renderImportExport() {
@@ -944,6 +1068,7 @@
 
     function render() {
       renderTracks();
+      document.querySelector("#mixCountLabel").textContent = `${playlist.length} track${playlist.length === 1 ? "" : "s"}`;
       renderEmbedCode();
       renderImportExport();
       renderPreview();
@@ -1102,6 +1227,8 @@
       const track = liveTrack();
       els.radioNowPlaying.textContent = track ? `${radioSnapshot?.playing ? "● ON AIR" : "Ⅱ PAUSED"}  ${track.title || "Untitled"}${track.author ? " — " + track.author : ""}` : "OFF AIR — No published songs";
       els.radioOnAirStatus.textContent = radioSnapshot?.autoDJ ? "24/7 Auto Radio · synchronized across all listeners" : radioSnapshot?.playing ? "Live broadcast · join the current song" : "DJ paused · use Play to start broadcasting";
+      const strip = document.querySelector("#stationSummary");
+      strip.textContent = track ? (radioSnapshot?.playing ? `On air: ${track.title || "Untitled track"}` : `Paused: ${track.title || "Untitled track"}`) : "Off air · Add songs to start the station";
     }
     function radioSeek(state) {
       return Math.max(0, Number(state.position || 0) + (state.playing && state.startedAt ? (Date.now() - Number(state.startedAt)) / 1000 : 0));
@@ -1312,6 +1439,11 @@
       sharedTrackCount = null;
       updatePublishingCounts();
       checkSharedQueue();
+      if (previewWidget) {
+        previewWidget.remove();
+        previewWidget = null;
+        renderPreview();
+      }
       publishingFeedback("Room changed. Review the shared queue before publishing to this room.", adminPublishingKey ? "pending" : "locked");
     });
     els.broadcastPlay.addEventListener("click", async () => {
@@ -1354,6 +1486,41 @@
       link.download = "retro96-playlist.json";
       link.click();
       URL.revokeObjectURL(link.href);
+    });
+
+    // Tabbed workspace keeps the widget visible and its media mounted as tabs change.
+    const tabButtons = [...document.querySelectorAll("[data-workspace-tab]")];
+    const tabPanels = [...document.querySelectorAll(".workspace-panel")];
+    function activateTab(name, focus = false) {
+      const available = tabButtons.some(tab => tab.dataset.workspaceTab === name);
+      const next = available ? name : "listen";
+      tabButtons.forEach(tab => {
+        const active = tab.dataset.workspaceTab === next;
+        tab.setAttribute("aria-selected", String(active));
+        tab.tabIndex = active ? 0 : -1;
+        if (active && focus) tab.focus();
+      });
+      tabPanels.forEach(panel => panel.hidden = panel.id !== `tab-${next}`);
+      try { sessionStorage.setItem("mixtap-workspace-tab", next); } catch (_) {}
+    }
+    tabButtons.forEach((tab, index) => {
+      tab.addEventListener("click", () => activateTab(tab.dataset.workspaceTab));
+      tab.addEventListener("keydown", event => {
+        const movement = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+        if (!movement) return;
+        event.preventDefault();
+        activateTab(tabButtons[(index + movement + tabButtons.length) % tabButtons.length].dataset.workspaceTab, true);
+      });
+    });
+    document.querySelectorAll("[data-open-tab]").forEach(button => button.addEventListener("click", () => activateTab(button.dataset.openTab)));
+    const requestedTab = (() => { try {return sessionStorage.getItem("mixtap-workspace-tab");} catch {return "listen";} })();
+    activateTab(requestedTab || "listen");
+    document.querySelector("#startListenRadio").addEventListener("click", () => previewWidget?.querySelector("[data-radio]")?.click());
+    document.querySelector("#startListenLocal").addEventListener("click", () => previewWidget?.querySelector("[data-personal]")?.click());
+    document.querySelector("#previewReloadQueue").addEventListener("click", () => {
+      previewWidget?.querySelector("[data-personal]")?.click();
+      window.Retro96Player?.updatePlaylist(playlist, { preferOwnPlaylist: true });
+      setStatus("Your current mix is loaded in the Local player.");
     });
 
     // Never substitute demo music for an empty personal or shared queue.

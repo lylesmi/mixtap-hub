@@ -33,7 +33,8 @@
     personalPlaylist: [],
     personalIndex: 0,
     personalPlaying: false,
-    liveTrack: null
+    liveTrack: null,
+    preferOwnPlaylist: false
   };
 
   function parseJson(value, fallback) {
@@ -118,14 +119,18 @@
           left: var(--r96-left, 22px);
           top: var(--r96-top, 92px);
           z-index: 2147483000;
-          width: 264px;
+          width: var(--r96-user-width, 264px);
+          min-width: 242px;
+          max-width: calc(100vw - 20px);
           color: #000;
           font-family: "MS Sans Serif", Tahoma, Verdana, Arial, sans-serif;
           user-select: none;
           filter: drop-shadow(4px 4px 0 rgba(0, 0, 0, .45));
         }
         .r96-shell {
+          position: relative;
           overflow: hidden;
+          min-height: var(--r96-user-height, 0px);
           border: 2px solid #c0c0c0;
           border-right-color: #404040;
           border-bottom-color: #404040;
@@ -212,6 +217,7 @@
         .r96-track-drawer button { display:block; width:100%; text-align:left; border:0; background:transparent; color:#000; padding:4px 3px; font:11px "MS Sans Serif",Tahoma,sans-serif; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .r96-track-drawer button[aria-current="true"] { background:#000080; color:white; }
         .r96-track-drawer button:hover { outline:1px dotted #404040; }
+        .r96-list-empty { color:#414141; font:11px/1.5 Tahoma,sans-serif; padding:9px 5px; }
         .r96-track-tab { display:flex; margin:2px 4px 0; }
         .r96-track-tab .r96-button { border-bottom:0; min-height:23px; padding:3px 8px; }
         .r96-track-tab[hidden], .r96-track-drawer[hidden] { display:none; }
@@ -365,7 +371,10 @@
           color: #000080;
           font-size: 10px;
         }
-        .r96-widget.r96-compact { width: 238px; }
+        .r96-widget.r96-compact { width: var(--r96-user-width, 264px); }
+        .r96-resizer { position:absolute; right:2px; bottom:1px; z-index:9; width:23px; height:23px; padding:0; cursor:nwse-resize; touch-action:none; border:0; background:linear-gradient(135deg,transparent 0 42%,#888 43% 47%,#fafafa 48% 52%,transparent 53% 60%,#888 61% 65%,#fafafa 66% 70%,transparent 71%); }
+        .r96-resizer:focus-visible { outline:2px solid #000080; outline-offset:-2px; }
+        .r96-widget.r96-docked .r96-resizer { display:none; }
         .r96-widget.r96-compact:not(.r96-playing-media) .r96-stage { display: none; }
         .r96-widget.r96-compact .r96-extra { display: none; }
         .r96-widget.r96-compact .r96-controls { grid-template-columns: 34px 52px 34px; }
@@ -444,6 +453,7 @@
             <a class="r96-open" data-link target="_blank" rel="noopener">open original</a>
           </div>
         </div>
+        <button type="button" class="r96-resizer" data-resize role="slider" aria-orientation="horizontal" aria-label="Resize player by dragging the corner; arrow keys adjust width, up or down adjust height" title="Drag to resize width and height like Windows 3.1" aria-valuemin="242" aria-valuemax="560"></button>
       </div>
     `;
 
@@ -455,13 +465,26 @@
     state.personalIndex = state.index;
     state.personalPlaying = false;
     state.liveTrack = null;
+    state.preferOwnPlaylist = Boolean(options.preferOwnPlaylist);
     try { state.volume = Math.max(0, Math.min(100, Number(window.localStorage.getItem("retro96-volume") ?? 75))); }
     catch (_) { state.volume = 75; }
     mount.querySelector("[data-volume]").value = String(state.volume);
     state.room = options.room || "";
     state.hubUrl = options.hubUrl || "";
     state.sync = Boolean(options.sync && state.room && state.hubUrl);
-    state.mode = state.sync && readModePreference() !== "personal" ? "radio" : "personal";
+    state.mode = options.initialMode === "personal" ? "personal"
+      : options.initialMode === "radio" && state.sync ? "radio"
+      : state.sync && readModePreference() !== "personal" ? "radio" : "personal";
+    try {
+      const savedWidth = Number(window.localStorage.getItem("retro96-widget-width"));
+      const savedHeight = Number(window.localStorage.getItem("retro96-widget-height"));
+      if (Number.isFinite(savedWidth) && savedWidth >= 242) {
+        mount.style.setProperty("--r96-user-width", `${Math.min(savedWidth, 560)}px`);
+      }
+      if (Number.isFinite(savedHeight) && savedHeight >= 230) {
+        mount.style.setProperty("--r96-user-height", `${Math.min(savedHeight, 760)}px`);
+      }
+    } catch (_) {}
     state.listening = true;
     state.minimized = false;
     try { state.musicOnly = window.localStorage.getItem("retro96-music-only") === "true"; } catch (_) { state.musicOnly = false; }
@@ -478,6 +501,7 @@
     bindControls(mount);
     renderTrack(mount);
     makeDraggable(mount);
+    makeResizable(mount);
     startRoomSync(mount);
     return mount;
   }
@@ -498,13 +522,19 @@
   function renderLocalTrackList(root) {
     const drawer = root.querySelector("[data-local-tracks]");
     drawer.replaceChildren();
+    if (!state.playlist.length) {
+      const empty = document.createElement("div");
+      empty.className = "r96-list-empty";
+      empty.textContent = state.radioConnection === "connected" ? "No tracks in this station yet. Add a mix at Mixtap." : "Loading the song list…";
+      drawer.appendChild(empty);
+    }
     state.playlist.forEach((track, idx) => {
       const button = document.createElement("button");
       button.type = "button";
       button.textContent = `${String(idx + 1).padStart(2, "0")}. ${track.title}`;
       button.setAttribute("aria-current", String(idx === state.index));
       button.title = trackLabel(track);
-      button.addEventListener("click", () => choosePersonalTrack(root, idx));
+      button.addEventListener("click", () => choosePersonalTrack(root, idx, true));
       drawer.appendChild(button);
     });
   }
@@ -563,19 +593,17 @@
     root.querySelector("[data-next]").disabled = !track || radio;
     root.querySelector("[data-shuffle]").disabled = !track || radio;
     root.querySelector("[data-pop]").disabled = !track;
-    root.querySelector("[data-play]").disabled = !track || (radio && !state.radioState);
+    root.querySelector("[data-play]").disabled = !track || (radio && (!state.radioState || !state.radioState.playing));
     root.querySelector("[data-play]").textContent = radio
-      ? (state.playing ? (state.listening ? "Mute" : "Listen") :
-          state.radioLocalPlaying ? "Pause" : "Play")
+      ? (state.playing ? (state.listening ? "Mute" : "Listen") : "Off air")
       : state.playing ? "Pause" : "Play";
     root.querySelector("[data-status]").textContent = radio
       ? (state.radioConnection === "offline" ? "RADIO · Connection lost; retrying" :
           !state.radioState ? "RADIO · Connecting to Mixtap" :
           state.playing ? (!state.listening ? "RADIO · Muted on this PC" :
             state.radioEnded ? "RADIO · Waiting for next song" : "RADIO · Following DJ broadcast") :
-          state.radioLocalPlaying ? "RADIO · Playing locally; DJ is paused" :
-          "RADIO · DJ paused; press Play to listen")
-      : "LOCAL · Your controls only";
+          "RADIO · DJ paused; no local control of the broadcast")
+      : (state.playlist.length ? "LOCAL · Your music, your controls" : "LOCAL · No tracks yet · Add songs to your station");
     root.querySelector("[data-restore]").title = state.minimized
       ? "Restore Retro 96 Radio (media playback pauses while minimized)"
       : "Restore Retro 96 Radio";
@@ -606,10 +634,10 @@
     if (!broadcastPlaying()) renderLocalTrackList(root);
 
     if (!track) {
-      marquee.textContent = "No songs published to Retro 96";
+      marquee.textContent = "♫ MIXTAP 96 · STANDBY · ADD YOUR FIRST TRACK ♫";
       provider.textContent = "EMPTY";
       title.textContent = "Mixtap queue is empty";
-      author.textContent = "Publish songs from Mixtap Hub";
+      author.textContent = "Add songs on mixtap.ljas.ca to start listening";
       author.hidden = false;
       link.href = state.hubUrl || "https://mixtap.ljas.ca";
       link.textContent = "open Mixtap Hub";
@@ -783,17 +811,9 @@
   function playPause(root) {
     if (!currentTrack()) return;
     if (broadcastPlaying()) {
-      if (state.playing) {
-        state.listening = !state.listening;
-      } else if (state.radioLocalPlaying) {
-        state.radioLocalSeek = currentRadioLocalSeek();
-        state.radioLocalStartedAt = 0;
-        state.radioLocalPlaying = false;
-      } else {
-        state.radioLocalStartedAt = Date.now();
-        state.radioLocalPlaying = true;
-        state.listening = true;
-      }
+      // Listeners can mute/unmute their own audio, not start or move the DJ's broadcast.
+      if (!state.radioState?.playing) return;
+      state.listening = !state.listening;
       state.radioEnded = false;
     } else {
       if (state.playing) {
@@ -807,13 +827,17 @@
 
   function renderLabels(root) {
     updateControls(root);
-    root.querySelector("[data-marquee]").textContent = `${canRenderMedia() ? "Playing" : "Ready"}: ${trackLabel(currentTrack())}`;
+    root.querySelector("[data-marquee]").textContent = currentTrack()
+      ? `${canRenderMedia() ? "Playing" : "Ready"}: ${trackLabel(currentTrack())}`
+      : "♫ MIXTAP 96 · STANDBY · ADD YOUR FIRST TRACK ♫";
   }
 
-  function choosePersonalTrack(root, index) {
+  function choosePersonalTrack(root, index, startPlayback = false) {
     if (broadcastPlaying() || !state.playlist.length) return;
     state.index = index;
     state.personalIndex = index;
+    if (startPlayback) state.playing = true;
+    state.personalPlaying = state.playing;
     state.desiredSeek = 0;
     state.localStartedAt = state.playing ? Date.now() : 0;
     renderTrack(root);
@@ -840,6 +864,13 @@
     if (mode === "radio" && !state.sync) return;
     if (state.mode === mode) {
       if (mode === "radio") { state.listening = true; state.radioEnded = false; if (state.radioState) applyRadioSnapshot(root, null, true); else fetchRoom(root); }
+      else {
+        const tab = root.querySelector("[data-track-toggle]");
+        tab.setAttribute("aria-expanded", "true");
+        tab.textContent = "▤ TRACK LIST ▴";
+        renderLocalTrackList(root);
+        updateControls(root);
+      }
       return;
     }
     if (state.mode === "personal") {
@@ -848,9 +879,15 @@
       state.personalPlaying = state.playing;
     }
     if (mode === "personal") {
-      state.desiredSeek = broadcastPlaying() && state.radioState
-        ? calculateSeek(state.radioState) : state.desiredSeek;
-      state.localStartedAt = state.playing ? Date.now() : 0;
+      // Radio's song catalogue is available to Local, but its live timestamp is not.
+      if (!state.preferOwnPlaylist && state.radioState && Array.isArray(state.radioState.playlist)) {
+        syncLocalCatalogue(state.radioState, root, false);
+      }
+      state.desiredSeek = 0;
+      state.localStartedAt = state.personalPlaying ? Date.now() : 0;
+      const toggle = root.querySelector("[data-track-toggle]");
+      toggle.setAttribute("aria-expanded", "true");
+      toggle.textContent = "▤ TRACK LIST ▴";
     }
     state.mode = mode;
     if (mode === "personal") {
@@ -971,6 +1008,57 @@
     });
   }
 
+  function makeResizable(root) {
+    const grip = root.querySelector("[data-resize]");
+    let initialX = 0, initialY = 0, initialWidth = 264, initialHeight = 250, resizing = false;
+    function maxAllowed() {
+      const parent = root.closest(".preview-shell");
+      const parentLimit = parent ? parent.clientWidth - 24 : window.innerWidth - 24;
+      return Math.max(242, Math.min(560, parentLimit));
+    }
+    function setWidth(width, persist = true) {
+      const clamped = Math.round(Math.max(242, Math.min(maxAllowed(), width)));
+      root.style.setProperty("--r96-user-width", `${clamped}px`);
+      grip.setAttribute("aria-valuenow", String(clamped));
+      if (persist) { try { window.localStorage.setItem("retro96-widget-width", String(clamped)); } catch (_) {} }
+    }
+    function setHeight(height) {
+      const shell = root.querySelector(".r96-shell");
+      const inlineMinHeight = shell.style.minHeight;
+      shell.style.minHeight = "0px";
+      const natural = shell.scrollHeight;
+      shell.style.minHeight = inlineMinHeight;
+      const clamped = Math.round(Math.max(natural, Math.min(760, height)));
+      root.style.setProperty("--r96-user-height", `${clamped}px`);
+      try { window.localStorage.setItem("retro96-widget-height", String(clamped)); } catch (_) {}
+    }
+    grip.addEventListener("pointerdown", event => {
+      if (root.classList.contains("r96-docked")) return;
+      event.preventDefault(); event.stopPropagation();
+      resizing = true; initialX = event.clientX; initialY = event.clientY;
+      initialWidth = root.getBoundingClientRect().width;
+      initialHeight = root.querySelector(".r96-shell").getBoundingClientRect().height;
+      grip.setPointerCapture(event.pointerId);
+    });
+    grip.addEventListener("pointermove", event => {
+      if (!resizing) return;
+      setWidth(initialWidth + event.clientX - initialX);
+      setHeight(initialHeight + event.clientY - initialY);
+    });
+    grip.addEventListener("pointerup", () => { resizing = false; });
+    grip.addEventListener("pointercancel", () => { resizing = false; });
+    grip.addEventListener("keydown", event => {
+      if (!["ArrowRight", "ArrowLeft", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+      event.preventDefault();
+      if (event.key === "ArrowRight" || event.key === "ArrowLeft")
+        setWidth(root.getBoundingClientRect().width + (event.key === "ArrowRight" ? 16 : -16));
+      else setHeight(root.querySelector(".r96-shell").getBoundingClientRect().height + (event.key === "ArrowDown" ? 16 : -16));
+    });
+    grip.setAttribute("aria-valuenow", String(Math.round(root.getBoundingClientRect().width)));
+    // A persisted width from another website may exceed this page's preview rail.
+    window.requestAnimationFrame(() => { if (root.isConnected && root.closest(".preview-shell")) setWidth(root.getBoundingClientRect().width, false); });
+  }
+
   function boot() {
     const script = document.currentScript || document.querySelector("script[data-retro96-player]");
     if (script && script.dataset.skipAuto === "true") return;
@@ -1043,14 +1131,38 @@
     else renderLabels(root);
   }
 
+  function syncLocalCatalogue(roomState, root, updateCurrent = true) {
+    if (state.preferOwnPlaylist || !Array.isArray(roomState?.playlist)) return;
+    const available = roomState.playlist.map(normalizeTrack).filter(track => track.id || track.url);
+    const previous = state.personalPlaylist;
+    const key = track => `${track.provider}:${track.id}`;
+    const oldKeys = previous.map(key).join("|");
+    const newKeys = available.map(key).join("|");
+    if (oldKeys === newKeys) return;
+    const oldTrack = previous[state.personalIndex];
+    const newIndex = oldTrack ? available.findIndex(track => key(track) === key(oldTrack)) : -1;
+    state.personalPlaylist = available.map(track => ({...track}));
+    state.personalIndex = newIndex >= 0 ? newIndex : 0;
+    if (updateCurrent && !broadcastPlaying()) {
+      // Never move a user's personal song to the live radio index or seek time.
+      const sameTrack = newIndex >= 0;
+      state.playlist = available.map(track => ({...track}));
+      state.index = state.personalIndex;
+      if (!sameTrack) { state.playing = false; state.personalPlaying = false; state.desiredSeek = 0; state.localStartedAt = 0; }
+      renderTrack(root);
+    }
+  }
+
   function applyRoomState(root, roomState) {
     if (!roomState || roomState.version === state.radioVersion) return;
     const previousState = state.radioState;
     state.radioVersion = roomState.version || String(Date.now());
     state.radioState = roomState;
-    // Personal mode owns a frozen local queue and playback state. This update
-    // never silently steals playback from someone listening independently.
+    // Keep the same station catalogue available in both modes, but never
+    // adopt the station's position or transport in Local.
+    syncLocalCatalogue(roomState, root);
     if (broadcastPlaying()) applyRadioSnapshot(root, previousState);
+    else if (state.preferOwnPlaylist) renderLabels(root);
   }
 
   function calculateSeek(roomState) {
@@ -1063,6 +1175,24 @@
 
   window.Retro96Player = {
     create: createPlayer,
+    updatePlaylist: function (tracks, options = {}) {
+      if (options.preferOwnPlaylist) state.preferOwnPlaylist = true;
+      const root = document.querySelector(".r96-widget");
+      if (!root) return;
+      const nextList = (Array.isArray(tracks) ? tracks : []).map(normalizeTrack).filter(track => track.id || track.url);
+      const oldTrack = state.personalPlaylist[state.personalIndex];
+      const oldSignature = JSON.stringify(state.personalPlaylist);
+      if (oldSignature === JSON.stringify(nextList)) return;
+      const idx = oldTrack ? nextList.findIndex(track => track.provider === oldTrack.provider && track.id === oldTrack.id) : -1;
+      state.personalPlaylist = nextList.map(track => ({...track}));
+      state.personalIndex = idx >= 0 ? idx : 0;
+      if (!broadcastPlaying()) {
+        state.playlist = nextList.map(track => ({...track}));
+        state.index = state.personalIndex;
+        if (idx < 0) { state.playing = false; state.personalPlaying = false; state.desiredSeek = 0; state.localStartedAt = 0; }
+        renderTrack(root);
+      }
+    },
     next: function () {
       const root = document.querySelector(".r96-widget");
       if (root) next(root);
