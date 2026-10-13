@@ -861,6 +861,13 @@
     let autoSyncTimer = 0;
     let metadataRefreshRunning = false;
 
+    function youtubePlaylistId(url) {
+      try {
+        const parsed=new URL(url), id=parsed.searchParams.get("list") || "";
+        if(parsed.protocol!=="https:"||!["youtube.com","www.youtube.com","m.youtube.com","music.youtube.com"].includes(parsed.hostname.toLowerCase()))return "";
+        return /^[a-zA-Z0-9_-]{8,100}$/.test(id)?id:"";
+      }catch{return "";}
+    }
     function detectProvider(url) {
       if (/youtu\.be|youtube\.com/i.test(url)) return "youtube";
       if (/spotify\.com/i.test(url)) return "spotify";
@@ -869,6 +876,8 @@
 
     function extractId(url, provider) {
       if (provider === "youtube") {
+        const listId = youtubePlaylistId(url);
+        if (listId) return "playlist:" + listId;
         const shortMatch = url.match(/youtu\.be\/([^?&#/]+)/i);
         if (shortMatch) return shortMatch[1];
         const watchMatch = url.match(/[?&]v=([^?&#]+)/i);
@@ -1000,34 +1009,42 @@
     }
 
     async function addTrack() {
-      const url = els.url.value.trim();
-      let metadata = {};
-      setStatus("Adding track...");
-
+      const url=els.url.value.trim();
+      if(!url)return setStatus("Paste a YouTube or Spotify link first.");
+      els.addTrack.disabled=true;
       try {
-        metadata = await fetchMetadata(url);
-      } catch (_) {
-        metadata = {};
-      }
-
-      const track = normalizeTrack({
-        provider: metadata.provider || els.provider.value,
-        title: els.title.value.trim() || metadata.title || "",
-        url: metadata.url || url,
-        id: metadata.id || "",
-        author: metadata.author || "",
-        thumbnail: metadata.thumbnail || ""
-      });
-
-      if (!track.url || !track.provider || !track.id) {
-        setStatus("Add a valid YouTube or Spotify URL first.");
-        return;
-      }
-
-      playlist.push(track);
-      els.title.value = "";
-      els.url.value = "";
-      saveAndRender("Track added.");
+        const listId=youtubePlaylistId(url);
+        if(listId) {
+          if(!adminPublishingKey)throw new Error("Unlock Admin access to import a YouTube playlist.");
+          setStatus("Importing YouTube playlist songs...");
+          const response=await fetch("/api/youtube-playlist/import", {
+            method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+adminPublishingKey},
+            body:JSON.stringify({url})
+          });
+          const data=await response.json();
+          if(!response.ok)throw new Error(data.error||"YouTube playlist import failed.");
+          const tracks=(data.tracks||[]).map(normalizeTrack).filter(t=>t.id&&t.provider==="youtube");
+          if(!tracks.length)throw new Error("No playable videos found in this playlist.");
+          const capacity=Math.max(0,500-playlist.length);
+          if(!capacity)throw new Error("Your current playlist has reached 500 songs.");
+          if(tracks.length>capacity&&!window.confirm("There is room for "+capacity+" more songs. Import only those songs?"))return;
+          playlist.push(...tracks.slice(0,capacity));
+          els.url.value="";els.title.value="";
+          saveAndRender("Imported "+Math.min(tracks.length,capacity)+" YouTube videos."+(data.truncated?" YouTube playlist exceeds the 500-song limit.":""));
+          return;
+        }
+        let metadata={};
+        try{metadata=await fetchMetadata(url);}catch{}
+        const track=normalizeTrack({
+          provider:metadata.provider||els.provider.value,title:els.title.value.trim()||metadata.title||"",
+          url:metadata.url||url,id:metadata.id||"",author:metadata.author||"",thumbnail:metadata.thumbnail||""
+        });
+        if(!track.url||!track.provider||!track.id)throw new Error("Add a valid YouTube or Spotify URL.");
+        if(playlist.length>=500)throw new Error("Your current playlist has reached 500 songs.");
+        playlist.push(track);els.title.value="";els.url.value="";
+        saveAndRender("Added "+track.provider+" track.");
+      }catch(error){setStatus(error.message||"Could not add this link.");}
+      finally{els.addTrack.disabled=false;}
     }
 
     function moveTrack(index, direction) {
@@ -1281,16 +1298,14 @@
       } catch (e) { els.autoRadioStatus.textContent = `Station command failed: ${e.message}`; return false; }
     }
     const radioSourceHelp = {
-      upload: "Uploaded music is scheduled on the server 24/7, even with the DJ browser closed. Choose a mix containing uploaded songs.",
-      youtube: "YouTube videos and playlists use the Mixtap DJ page. Leave this page open to send track changes; viewers may need to press Play.",
-      spotify: "Spotify uses official embeds. Leave the DJ page open; Spotify listeners may need to press Play and cannot be forced to the same timestamp.",
-      links: "YouTube and Spotify links can share a broadcast queue. Embeds still follow each provider's playback restrictions; leave the DJ page open."
+      upload: "Media library playlist: uploaded audio is scheduled on the server 24/7, even when the DJ page is closed.",
+      stream: "Stream playlist: YouTube/Spotify embeds need the DJ browser open for track changes. Listeners may need to press Play. Spotify timing cannot be synchronized precisely."
     };
     function updateRadioSourceHelp() {
       const mode = els.radioSource.value;
       els.radioSourceDescription.textContent = radioSourceHelp[mode] || radioSourceHelp.upload;
       els.stopAutoRadio.hidden = mode !== "upload";
-      els.startAutoRadio.textContent = mode === "upload" ? "▶ Start 24/7 Uploaded Radio" : "▶ Broadcast selected links";
+      els.startAutoRadio.textContent = mode === "upload" ? "▶ Start 24/7 Media library" : "▶ Broadcast Stream playlist";
     }
     els.radioSource.addEventListener("change", updateRadioSourceHelp);
     updateRadioSourceHelp();
@@ -1312,9 +1327,9 @@
       let tracks;
       try { tracks = await selectedRadioTracks(); }
       catch (error) { els.radioSourceStatus.textContent = error.message; return false; }
-      const sourceTracks = tracks.filter(track => mode === "links" ? ["youtube", "spotify"].includes(track.provider) : track.provider === mode);
+      const sourceTracks = tracks.filter(track => mode === "upload" ? track.provider === "upload" : ["youtube","spotify"].includes(track.provider));
       if (!sourceTracks.length) {
-        els.radioSourceStatus.textContent = `No ${mode === "links" ? "YouTube or Spotify links" : mode === "upload" ? "uploaded songs" : mode + " links"} found in that playlist. Add links on the Playlists tab, save the mix, or choose another playlist.`;
+        els.radioSourceStatus.textContent = mode === "upload" ? "No uploaded songs in this playlist. Add songs under Playlists > Music library." : "No YouTube or Spotify links in this playlist. Add them under Playlists > YouTube / Spotify.";
         return false;
       }
       if (mode === "upload") {
@@ -1327,7 +1342,7 @@
         return false;
       }
       const published = await broadcast({index: 0, playing: true, activeTrack: null, position: 0, startedAt: Date.now()}, {tracks: sourceTracks, dj: true});
-      if (published) els.radioSourceStatus.textContent = `${sourceTracks.length} ${mode === "links" ? "YouTube/Spotify" : mode === "youtube" ? "YouTube" : "Spotify"} item(s) on Radio. Keep this DJ page open. Listeners may need to press Play.`;
+      if (published) els.radioSourceStatus.textContent = `${sourceTracks.length} stream item(s) on Radio. Keep this DJ page open. Listeners may need to press Play.`;
       return Boolean(published);
     }
     els.startAutoRadio.addEventListener("click", startSelectedRadioSource);
