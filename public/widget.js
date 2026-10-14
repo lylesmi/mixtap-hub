@@ -1076,7 +1076,9 @@
     const room = script && script.dataset.room;
     const hubUrl = script && script.dataset.hubUrl;
     const sync = script && script.dataset.sync === "true";
-    const startMinimized=script?.dataset?.startMinimized === 'true';
+    // Retro Room always starts on the cassette launcher, even on radio.html.
+    // Keep standalone Mixtap's player behavior unchanged.
+    const startMinimized=script?.dataset?.startMinimized === 'true' || window.location.hostname.toLowerCase() === 'retro.ljas.ca';
     createPlayer({ playlist, startIndex, room, hubUrl, sync, startMinimized });
   }
 
