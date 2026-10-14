@@ -403,6 +403,9 @@
           right: auto !important;
           bottom: auto !important;
           width: 50px !important;
+          min-width: 50px !important;
+          max-width: 50px !important;
+          height: 50px !important;
         }
         .r96-widget.r96-docked .r96-shell { display: none; }
         .r96-widget.r96-docked .r96-dock-button { display: block; }
