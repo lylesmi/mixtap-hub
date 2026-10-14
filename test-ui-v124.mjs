@@ -5,6 +5,13 @@ import { readFileSync } from 'node:fs';
 const html = readFileSync(new URL('./public/index.html', import.meta.url),'utf8');
 const server = readFileSync(new URL('./server.mjs', import.meta.url),'utf8');
 const dom = html.slice(0,html.indexOf('    const STORAGE_KEY'));
+const widget = readFileSync(new URL('./public/widget.js', import.meta.url), 'utf8');
+
+test('Retro Room launches Mixtap minimized without changing standalone Mixtap',()=>{
+  assert.match(widget,/startMinimized=script\?\.dataset\?\.startMinimized === 'true' \|\| window\.location\.hostname\.toLowerCase\(\) === 'retro\.ljas\.ca'/);
+  assert.match(widget,/state\.minimized = Boolean\(options\.startMinimized\)/);
+  assert.match(widget,/data-restore/);
+});
 
 test('playlist editor has a single top selection and bottom Save',()=>{
   assert.match(dom,/id="savedPlaylistSelect"/);
