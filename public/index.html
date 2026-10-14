@@ -464,6 +464,22 @@
     @media(max-width:990px) { .studio-layout { grid-template-columns:minmax(0,1fr) minmax(265px,320px); gap:12px; } .workspace-tab { font-size:12px; padding:11px 12px; } }
     @media(max-width:790px) { .studio-layout { grid-template-columns:1fr; display:flex; flex-direction:column; } .preview-rail { order:-1; width:100%; } .preview-rail-inner { position:static; display:grid; grid-template-columns:minmax(260px,380px) 1fr; align-items:start; gap:10px 18px; } .preview-rail-inner>.panel { grid-row:span 3; } .workspace-main { width:100%; } .preview-shell { min-height:305px; } .workspace-tabs { position:sticky; top:0; z-index:4; background:#091525; padding-top:6px; } }
     @media(max-width:560px) { .mixtap-app { width:calc(100% - 22px); padding-top:14px; } .mixtap-app header { align-items:flex-start; flex-direction:column; gap:9px; } .mixtap-app header h1 { font-size:32px; } .app-overview-strip { padding:10px; } .strip-button { display:none; } .preview-rail-inner { display:block; } .preview-rail-inner>.panel { margin-bottom:12px; } .preview-helper,.preview-refresh,.preview-tip { margin-bottom:10px; } .preview-shell { padding:12px 8px 18px; min-height:300px; } .workspace-tab { padding:11px 12px; } .listen-options,.saved-mixes { grid-template-columns:1fr; } .overview-panel .panel-body { padding:18px; } }
+    /* v1.2.4 compact playlist editor */
+    .playlist-picker { display:grid; grid-template-columns:minmax(0,1fr) 40px 40px; align-items:end; gap:8px; margin-bottom:12px; }
+    .playlist-picker .field { min-width:0; }
+    .playlist-icon { height:40px; min-width:40px; padding:2px; font-size:19px; }
+    .playlist-source-switch { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+    .playlist-source-switch .btn[aria-pressed="true"] { border-color:#83e8d0; box-shadow:inset 0 2px #72efc4; }
+    .playlist-source-panel { border:1px solid #36536b; border-radius:8px; padding:14px; background:#0c1b32; display:grid; gap:8px; }
+    .playlist-source-panel[hidden] { display:none!important; }
+    .playlist-source-panel>label { color:#cce8ea; font-size:12px; font-weight:700; }
+    .playlist-add-row { display:flex; gap:9px; flex-wrap:wrap; }
+    .playlist-add-row select { flex:1 1 210px; min-width:0; }
+    .playlist-type-note { color:#98ead5; font-size:12px; margin-bottom:10px; }
+    .playlist-save-footer { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px; padding-top:14px; margin-top:16px; border-top:1px solid #344961; }
+    .playlist-save-footer span { color:#a6c0cd; font-size:12px; }
+    .playlist-save-footer .btn { min-width:135px; }
+    @media(max-width:560px) { .playlist-picker { gap:5px; } .playlist-save-footer .btn { width:100%; } }
     </style>
 </head>
 <body>
@@ -473,7 +489,7 @@
 <h1>Mixtap <span class="brand-accent">96</span></h1>
 <p class="lede">Your music. Your station. One retro control desk.</p>
 </div>
-<div class="badge">Self-hosted ljas.ca · v1.2.3</div>
+<div class="badge">Self-hosted ljas.ca · v1.2.4</div>
 </header>
     <div class="app-overview-strip" role="status" aria-live="polite">
       <div class="broadcast-dot" aria-hidden="true"></div>
@@ -505,39 +521,40 @@
           </div>
         </section>
         <section class="workspace-panel" id="tab-playlists" role="tabpanel" aria-labelledby="tab-button-playlists" hidden>
-          <div class="section-intro"><span class="section-eyebrow">MIX TAPE DESK</span><h2>Build &amp; save a playlist</h2><p>Keep mixes organized here. Editing a mix won't affect the live radio until you choose to publish or broadcast it. <button class="text-link" data-open-tab="access" type="button">Unlock admin access ↗</button></p></div>
-          <section class="panel studio-card"><h2>Saved mixes</h2><div class="panel-body"><div class="saved-mixes">
-<div class="field"><label for="savedPlaylistSelect">Saved playlists</label><select id="savedPlaylistSelect"><option value="">Choose a saved mix...</option></select></div>
-<div class="field"><label for="playlistName">Playlist name</label><input id="playlistName" maxlength="70" placeholder="Friday night arcade"/></div>
-<div class="actions"><button class="btn" id="loadSavedPlaylist" type="button">Load mix</button><button class="btn" id="saveNamedPlaylist" type="button">Save mix</button><button class="btn" id="saveNewPlaylist" type="button">Save as new</button><button class="btn" id="deleteSavedPlaylist" type="button">Delete saved mix</button><button class="btn primary" id="playSavedOnRadio" type="button">Play on Radio</button></div>
-<p class="note" id="playlistStatus" role="status">Saved mixes live on your Mixtap server. Editing your local queue doesn't interrupt the broadcast.</p>
-</div></div></section>
-          <section class="panel studio-card"><h2>Add tracks</h2><div class="panel-body"><div class="form">
-<div class="field">
-<label for="provider">Source</label>
-<select id="provider">
-<option value="auto">Auto detect</option>
-<option value="youtube">YouTube</option>
-<option value="spotify">Spotify</option>
-</select>
+<div class="section-intro"><span class="section-eyebrow">PLAYLIST EDITOR</span><h2>Playlists</h2><p>Choose a saved playlist or press + to start a new one. Your live Radio is unchanged until you broadcast a mix.</p></div>
+<section class="panel studio-card"><div class="panel-body">
+<div class="playlist-picker">
+<div class="field"><label for="savedPlaylistSelect">Playlist</label><select id="savedPlaylistSelect"><option value="">＋ New playlist</option></select></div>
+<button class="btn playlist-icon" id="newPlaylist" type="button" title="New playlist" aria-label="Create a new playlist">＋</button>
+<button class="btn playlist-icon" id="deleteSavedPlaylist" type="button" title="Delete saved playlist" aria-label="Delete selected saved playlist">⌫</button></div>
+<div class="field"><label for="playlistName">Playlist name</label><input id="playlistName" maxlength="70" placeholder="Friday night arcade"></div>
+<p class="note" id="playlistStatus" role="status">Select a playlist or start fresh. Unlock Admin access to save to Mixtap.</p>
+</div></section>
+<section class="panel studio-card"><h2>Add music</h2><div class="panel-body">
+<div class="playlist-source-switch" role="group" aria-label="Music source">
+<button class="btn primary" id="sourceUploaded" type="button" aria-pressed="true">♫ Music library</button>
+<button class="btn" id="sourceLinks" type="button" aria-pressed="false">▶ YouTube / Spotify</button></div>
+<div class="playlist-source-panel" id="playlistUploadedPanel">
+<label for="playlistAudioSelect">Choose from uploaded music</label>
+<div class="playlist-add-row"><select id="playlistAudioSelect"><option value="">Loading music library...</option></select>
+<button class="btn" id="addLibraryTrack" type="button">＋ Add song</button></div>
+<p class="note">Uploaded songs are labelled Music library. Use the Music library tab to upload more files.</p>
 </div>
-<div class="field">
-<label for="title">Display title</label>
-<input id="title" placeholder="Auto-filled from the link"/>
+<div class="playlist-source-panel" id="playlistLinksPanel" hidden>
+<div class="form"><div class="field"><label for="provider">Source</label><select id="provider"><option value="auto">Auto detect</option><option value="youtube">YouTube</option><option value="spotify">Spotify</option></select></div>
+<div class="field"><label for="title">Title (optional)</label><input id="title" placeholder="Automatically detected"></div>
+<div class="field full"><label for="url">YouTube video / playlist or Spotify URL</label><input id="url" placeholder="Paste a YouTube or Spotify link"></div></div>
+<div class="actions"><button class="btn primary" id="addTrack" type="button">＋ Add / Import</button><button class="btn" id="refreshMetadata" type="button">Refresh titles</button></div>
+<p class="note">YouTube playlist links import individual videos when a YouTube Data API key is configured on the server. Up to 500 songs per playlist. Spotify links use embeds.</p>
 </div>
-<div class="field full">
-<label for="url">YouTube video, YouTube playlist, or Spotify URL</label>
-<input id="url" placeholder="https://www.youtube.com/watch?v=... or https://open.spotify.com/track/..."/>
-</div>
-</div><div class="actions">
-<button class="btn primary" id="addTrack" type="button">Add Track</button>
-<button class="btn" id="refreshMetadata" type="button">Fix Titles</button>
-<button class="btn" id="loadDemo" type="button">Load Demo Mix</button>
-<button class="btn warn" id="clearTracks" type="button">Clear</button>
-</div><div aria-live="polite" class="status" id="status"></div></div></section>
-          <section class="panel studio-card"><h2>Current mix <span class="tiny-count" id="mixCountLabel">0 tracks</span></h2><div class="panel-body"><div class="tracks" id="tracks"></div></div></section>
-        </section>
-        <section class="workspace-panel" id="tab-library" role="tabpanel" aria-labelledby="tab-button-library" hidden>
+<div class="status" id="status" aria-live="polite"></div>
+</div></section>
+<section class="panel studio-card"><h2>Playlist songs <span class="tiny-count" id="mixCountLabel">0 tracks</span></h2>
+<div class="panel-body"><p class="playlist-type-note" id="mixTypeLabel">New playlist</p><div class="tracks" id="tracks"></div>
+<div class="playlist-save-footer"><span>Saving doesn't interrupt the live Radio.</span>
+<button class="btn primary" id="saveNamedPlaylist" type="button">Save playlist</button></div></div></section>
+</section>
+<section class="workspace-panel" id="tab-library" role="tabpanel" aria-labelledby="tab-button-library" hidden>
           <div class="section-intro"><span class="section-eyebrow">YOUR COLLECTION</span><h2>Music library</h2><p>Upload audio files to the Mixtap server, then add them to a mix. Existing uploaded songs are preserved across app updates. <button class="text-link" data-open-tab="access" type="button">Unlock uploads ↗</button></p></div>
           <section class="panel studio-card"><div class="panel-body"><div class="upload-library">
 <h3>♫ Your music library</h3>
@@ -560,10 +577,10 @@
 <div class="onair-frame" id="radioPlayerBox"><div id="radioPlayerIdle">♫ Tune in to the live broadcast or press Play to start broadcasting your selected playlist.</div></div>
 <div class="auto-radio-box radio-source-box">
 <strong>Choose what plays on Radio</strong>
-<p class="note">Broadcast your uploaded audio, YouTube links, Spotify links, or a mix of both services. Everyone's Radio widget follows the published station.</p>
+<p class="note">Choose a playlist. Media library runs 24/7 from uploaded songs; Stream playlist uses YouTube and Spotify embeds.</p>
 <div class="radio-source-grid">
   <div class="field"><label for="radioSource">Radio music source</label>
-    <select id="radioSource"><option value="upload">Uploaded music · 24/7</option><option value="youtube">YouTube links</option><option value="spotify">Spotify links</option><option value="links">YouTube + Spotify links</option></select>
+    <select id="radioSource"><option value="upload">Media library playlist · 24/7</option><option value="stream">Stream playlist · YouTube / Spotify</option></select>
   </div>
   <div class="field"><label for="radioMixSelect">Choose a playlist to broadcast</label>
     <select id="radioMixSelect"><option value="current">Current editor mix</option></select>
@@ -685,8 +702,6 @@
       url: document.querySelector("#url"),
       addTrack: document.querySelector("#addTrack"),
       refreshMetadata: document.querySelector("#refreshMetadata"),
-      loadDemo: document.querySelector("#loadDemo"),
-      clearTracks: document.querySelector("#clearTracks"),
       status: document.querySelector("#status"),
       tracks: document.querySelector("#tracks"),
       embedCode: document.querySelector("#embedCode"),
@@ -709,13 +724,17 @@
       localTrackCount: document.querySelector("#localTrackCount"),
       sharedTrackCount: document.querySelector("#sharedTrackCount"),
       savedPlaylistSelect: document.querySelector("#savedPlaylistSelect"),
+      newPlaylist: document.querySelector("#newPlaylist"),
+      sourceUploaded: document.querySelector("#sourceUploaded"),
+      sourceLinks: document.querySelector("#sourceLinks"),
+      playlistUploadedPanel: document.querySelector("#playlistUploadedPanel"),
+      playlistLinksPanel: document.querySelector("#playlistLinksPanel"),
+      playlistAudioSelect: document.querySelector("#playlistAudioSelect"),
+      addLibraryTrack: document.querySelector("#addLibraryTrack"),
       playlistName: document.querySelector("#playlistName"),
       playlistStatus: document.querySelector("#playlistStatus"),
-      loadSavedPlaylist: document.querySelector("#loadSavedPlaylist"),
       saveNamedPlaylist: document.querySelector("#saveNamedPlaylist"),
-      saveNewPlaylist: document.querySelector("#saveNewPlaylist"),
       deleteSavedPlaylist: document.querySelector("#deleteSavedPlaylist"),
-      playSavedOnRadio: document.querySelector("#playSavedOnRadio"),
       radioNowPlaying: document.querySelector("#radioNowPlaying"),
       radioOnAirStatus: document.querySelector("#radioOnAirStatus"),
       radioPlayerBox: document.querySelector("#radioPlayerBox"),
@@ -840,6 +859,13 @@
     let autoSyncTimer = 0;
     let metadataRefreshRunning = false;
 
+    function youtubePlaylistId(url) {
+      try {
+        const parsed=new URL(url), id=parsed.searchParams.get("list") || "";
+        if(parsed.protocol!=="https:"||!["youtube.com","www.youtube.com","m.youtube.com","music.youtube.com"].includes(parsed.hostname.toLowerCase()))return "";
+        return /^[a-zA-Z0-9_-]{8,100}$/.test(id)?id:"";
+      }catch{return "";}
+    }
     function detectProvider(url) {
       if (/youtu\.be|youtube\.com/i.test(url)) return "youtube";
       if (/spotify\.com/i.test(url)) return "spotify";
@@ -848,6 +874,8 @@
 
     function extractId(url, provider) {
       if (provider === "youtube") {
+        const listId = youtubePlaylistId(url);
+        if (listId) return "playlist:" + listId;
         const shortMatch = url.match(/youtu\.be\/([^?&#/]+)/i);
         if (shortMatch) return shortMatch[1];
         const watchMatch = url.match(/[?&]v=([^?&#]+)/i);
@@ -979,34 +1007,42 @@
     }
 
     async function addTrack() {
-      const url = els.url.value.trim();
-      let metadata = {};
-      setStatus("Adding track...");
-
+      const url=els.url.value.trim();
+      if(!url)return setStatus("Paste a YouTube or Spotify link first.");
+      els.addTrack.disabled=true;
       try {
-        metadata = await fetchMetadata(url);
-      } catch (_) {
-        metadata = {};
-      }
-
-      const track = normalizeTrack({
-        provider: metadata.provider || els.provider.value,
-        title: els.title.value.trim() || metadata.title || "",
-        url: metadata.url || url,
-        id: metadata.id || "",
-        author: metadata.author || "",
-        thumbnail: metadata.thumbnail || ""
-      });
-
-      if (!track.url || !track.provider || !track.id) {
-        setStatus("Add a valid YouTube or Spotify URL first.");
-        return;
-      }
-
-      playlist.push(track);
-      els.title.value = "";
-      els.url.value = "";
-      saveAndRender("Track added.");
+        const listId=youtubePlaylistId(url);
+        if(listId) {
+          if(!adminPublishingKey)throw new Error("Unlock Admin access to import a YouTube playlist.");
+          setStatus("Importing YouTube playlist songs...");
+          const response=await fetch("/api/youtube-playlist/import", {
+            method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+adminPublishingKey},
+            body:JSON.stringify({url})
+          });
+          const data=await response.json();
+          if(!response.ok)throw new Error(data.error||"YouTube playlist import failed.");
+          const tracks=(data.tracks||[]).map(normalizeTrack).filter(t=>t.id&&t.provider==="youtube");
+          if(!tracks.length)throw new Error("No playable videos found in this playlist.");
+          const capacity=Math.max(0,500-playlist.length);
+          if(!capacity)throw new Error("Your current playlist has reached 500 songs.");
+          if(tracks.length>capacity&&!window.confirm("There is room for "+capacity+" more songs. Import only those songs?"))return;
+          playlist.push(...tracks.slice(0,capacity));
+          els.url.value="";els.title.value="";
+          saveAndRender("Imported "+Math.min(tracks.length,capacity)+" YouTube videos."+(data.truncated?" YouTube playlist exceeds the 500-song limit.":""));
+          return;
+        }
+        let metadata={};
+        try{metadata=await fetchMetadata(url);}catch{}
+        const track=normalizeTrack({
+          provider:metadata.provider||els.provider.value,title:els.title.value.trim()||metadata.title||"",
+          url:metadata.url||url,id:metadata.id||"",author:metadata.author||"",thumbnail:metadata.thumbnail||""
+        });
+        if(!track.url||!track.provider||!track.id)throw new Error("Add a valid YouTube or Spotify URL.");
+        if(playlist.length>=500)throw new Error("Your current playlist has reached 500 songs.");
+        playlist.push(track);els.title.value="";els.url.value="";
+        saveAndRender("Added "+track.provider+" track.");
+      }catch(error){setStatus(error.message||"Could not add this link.");}
+      finally{els.addTrack.disabled=false;}
     }
 
     function moveTrack(index, direction) {
@@ -1032,7 +1068,7 @@
     function renderTracks() {
       els.tracks.innerHTML = "";
       if (!playlist.length) {
-        els.tracks.innerHTML = `<p class="note">No tracks yet. Add a YouTube or Spotify link, or load the demo mix.</p>`;
+        els.tracks.innerHTML = `<p class="note">Playlist empty. Add music from Music library or YouTube / Spotify above.</p>`;
         return;
       }
 
@@ -1040,7 +1076,7 @@
         const row = document.createElement("div");
         row.className = "track";
         row.innerHTML = `
-          <span class="pill">${track.provider}</span>
+          <span class="pill">${track.provider === "upload" ? "Music library" : track.provider === "youtube" ? "YouTube" : track.provider === "spotify" ? "Spotify" : track.provider}</span>
           <span class="track-main">
             <strong>${escapeHtml(track.title)}</strong>
             <small>${escapeHtml(track.author ? `${track.author} - ${track.url}` : track.url)}</small>
@@ -1076,9 +1112,8 @@
           initialMode: "personal"
         });
         els.preview.appendChild(previewWidget);
-      } else if (playlist.length) {
-        // A newly built mix appears immediately in the Local preview,
-        // without publishing it or changing the radio station.
+      } else {
+        // The new playlist control clears the Local preview as well.
         window.Retro96Player.updatePlaylist(playlist, { preferOwnPlaylist: true });
       }
     }
@@ -1090,93 +1125,123 @@
     function render() {
       renderTracks();
       document.querySelector("#mixCountLabel").textContent = `${playlist.length} track${playlist.length === 1 ? "" : "s"}`;
+      document.querySelector("#mixTypeLabel").textContent = "Playlist type: "+classifyPlaylist(playlist);
       renderEmbedCode();
       renderImportExport();
       renderPreview();
     }
 
-    function showPlaylistStatus(text) { els.playlistStatus.textContent = text; }
-
+    function showPlaylistStatus(msg) { els.playlistStatus.textContent = msg; }
+    function classifyPlaylist(tracks) {
+      if (!tracks.length) return "Empty";
+      if (tracks.every(t => t.provider === "upload")) return "Music library";
+      if (tracks.every(t => ["youtube","spotify"].includes(t.provider))) return "Stream";
+      return "Mixed";
+    }
     async function refreshSavedMixes() {
       try {
-        const response = await fetch("/api/playlists", { cache: "no-store" });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const response = await fetch("/api/playlists",{cache:"no-store"});
+        if (!response.ok) throw new Error("HTTP " + response.status);
         savedMixes = (await response.json()).playlists || [];
-        const select = els.savedPlaylistSelect;
-        select.replaceChildren(new Option("Choose a saved mix...", ""));
-        const oldRadioSelection = els.radioMixSelect.value || "current";
-        els.radioMixSelect.replaceChildren(new Option("Current editor mix", "current"));
+        const previousRadio = els.radioMixSelect.value || "current";
+        els.savedPlaylistSelect.replaceChildren(new Option("＋ New playlist",""));
+        els.radioMixSelect.replaceChildren(new Option("Current editor playlist","current"));
         savedMixes.forEach(item => {
-          select.add(new Option(`${item.name} (${item.count})`, item.id));
-          els.radioMixSelect.add(new Option(`${item.name} (${item.count})`, item.id));
+          const label = item.name + " · " + (item.type || "Playlist") + " (" + item.count + ")";
+          els.savedPlaylistSelect.add(new Option(label,item.id));
+          els.radioMixSelect.add(new Option(label,item.id));
         });
-        els.radioMixSelect.value = savedMixes.some(item => item.id === oldRadioSelection) ? oldRadioSelection : "current";
-        select.value = savedMixes.some(item => item.id === selectedPlaylistId) ? selectedPlaylistId : "";
-      } catch (error) { showPlaylistStatus(`Could not load saved playlists: ${error.message}`); }
+        els.savedPlaylistSelect.value = savedMixes.some(p=>p.id===selectedPlaylistId) ? selectedPlaylistId : "";
+        els.radioMixSelect.value = savedMixes.some(p=>p.id===previousRadio) ? previousRadio : "current";
+      } catch(error) { showPlaylistStatus("Could not load saved playlists: "+error.message); }
     }
-    els.savedPlaylistSelect.addEventListener("change", () => {
-      selectedPlaylistId = els.savedPlaylistSelect.value;
-      localStorage.setItem(SELECTED_PLAYLIST_KEY, selectedPlaylistId);
-      els.playlistName.value = savedMixes.find(mix => mix.id === selectedPlaylistId)?.name || "";
-    });
+    function newPlaylist() {
+      if (playlist.length && !window.confirm("Create an empty playlist? Unsaved editor changes will be cleared; saved playlists and the live radio stay intact.")) {
+        els.savedPlaylistSelect.value = selectedPlaylistId; return;
+      }
+      selectedPlaylistId = ""; localStorage.removeItem(SELECTED_PLAYLIST_KEY);
+      els.savedPlaylistSelect.value = ""; els.playlistName.value = "";
+      playlist = []; savePlaylist(); render();
+      showPlaylistStatus("New playlist. Add music, enter a name and select Save playlist.");
+    }
     async function loadNamedPlaylist() {
-      if (!els.savedPlaylistSelect.value) return showPlaylistStatus("Choose a saved mix first.");
-      const response = await fetch(`/api/playlists/${encodeURIComponent(els.savedPlaylistSelect.value)}`);
-      if (!response.ok) return showPlaylistStatus("Could not load that saved mix.");
-      const item = await response.json();
-      playlist = (item.tracks || []).map(normalizeTrack).filter(track => track.provider && track.id);
-      selectedPlaylistId = item.id;
-      localStorage.setItem(SELECTED_PLAYLIST_KEY, selectedPlaylistId);
-      els.playlistName.value = item.name;
-      savePlaylist(); render();
-      showPlaylistStatus(`Loaded ${item.name} locally. Radio is unchanged.`);
-    }
-    async function saveNamedPlaylist(asNew = false) {
-      const name = els.playlistName.value.trim();
-      if (!name) return showPlaylistStatus("Name the mix before saving.");
-      if (!adminPublishingKey) return showPlaylistStatus("Unlock publishing to save playlists on the server.");
-      const id = !asNew && selectedPlaylistId ? selectedPlaylistId : "";
-      const endpoint = id ? `/api/playlists/${encodeURIComponent(id)}` : "/api/playlists";
+      const id = els.savedPlaylistSelect.value;
+      if (!id) return;
       try {
-        const response = await fetch(endpoint, {
-          method: id ? "PUT" : "POST",
-          headers: {"Content-Type": "application/json", "Authorization": `Bearer ${adminPublishingKey}`},
-          body: JSON.stringify({name, tracks: playlist})
+        const response = await fetch("/api/playlists/"+encodeURIComponent(id),{cache:"no-store"});
+        if (!response.ok) throw new Error("Could not load that playlist.");
+        const data = await response.json();
+        playlist = (data.tracks || []).map(normalizeTrack).filter(t=>t.provider&&t.id);
+        selectedPlaylistId = data.id; localStorage.setItem(SELECTED_PLAYLIST_KEY,selectedPlaylistId);
+        els.playlistName.value = data.name;
+        savePlaylist(); render();
+        showPlaylistStatus("Loaded "+data.name+". Live radio is unchanged.");
+      } catch(error) { showPlaylistStatus(error.message); }
+    }
+    els.savedPlaylistSelect.addEventListener("change",()=>{
+      if (els.savedPlaylistSelect.value) {
+        if (playlist.length && !window.confirm("Switch playlists? Unsaved editor changes will be replaced. Your saved playlists and Radio are unchanged.")) {
+          els.savedPlaylistSelect.value = selectedPlaylistId; return;
+        }
+        loadNamedPlaylist();
+      } else newPlaylist();
+    });
+    els.newPlaylist.addEventListener("click",newPlaylist);
+    async function saveNamedPlaylist() {
+      const name = els.playlistName.value.trim();
+      if (!name) return showPlaylistStatus("Enter a playlist name first.");
+      if (!adminPublishingKey) return showPlaylistStatus("Unlock Admin access before saving.");
+      const id = selectedPlaylistId;
+      try {
+        const response = await fetch(id ? "/api/playlists/"+encodeURIComponent(id) : "/api/playlists",{
+          method:id?"PUT":"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+adminPublishingKey},
+          body:JSON.stringify({name,tracks:playlist})
         });
         const data = await response.json();
-        if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
-        selectedPlaylistId = data.id;
-        localStorage.setItem(SELECTED_PLAYLIST_KEY, selectedPlaylistId);
+        if (!response.ok) throw new Error(data.error || "HTTP "+response.status);
+        selectedPlaylistId = data.id;localStorage.setItem(SELECTED_PLAYLIST_KEY,selectedPlaylistId);
         await refreshSavedMixes();
-        showPlaylistStatus(`Saved ${name} (${playlist.length} tracks) to your server.`);
-      } catch (error) { showPlaylistStatus(`Save failed: ${error.message}`); }
+        showPlaylistStatus("Saved "+name+" · "+classifyPlaylist(playlist)+" ("+playlist.length+" songs).");
+      } catch(error) { showPlaylistStatus("Save failed: "+error.message); }
     }
-    els.loadSavedPlaylist.addEventListener("click", loadNamedPlaylist);
-    els.saveNamedPlaylist.addEventListener("click", () => saveNamedPlaylist(false));
-    els.saveNewPlaylist.addEventListener("click", () => saveNamedPlaylist(true));
-    els.deleteSavedPlaylist.addEventListener("click", async () => {
-      if (!selectedPlaylistId || !adminPublishingKey) return showPlaylistStatus("Choose a saved mix and unlock publishing first.");
-      if (!confirm("Delete this saved mix? The live radio is not affected.")) return;
-      const response = await fetch(`/api/playlists/${encodeURIComponent(selectedPlaylistId)}`, {method: "DELETE", headers: {"Authorization": `Bearer ${adminPublishingKey}`}});
-      if (!response.ok) return showPlaylistStatus("Delete failed; saved mix was preserved.");
-      selectedPlaylistId = ""; localStorage.removeItem(SELECTED_PLAYLIST_KEY);
-      await refreshSavedMixes();
-      showPlaylistStatus("Saved mix deleted. Local queue and live radio are unchanged.");
+    els.saveNamedPlaylist.addEventListener("click",saveNamedPlaylist);
+    els.deleteSavedPlaylist.addEventListener("click",async()=>{
+      if (!selectedPlaylistId || !adminPublishingKey) return showPlaylistStatus("Select a saved playlist and unlock Admin access.");
+      if (!window.confirm("Delete this saved playlist? Your uploaded songs and radio station will not be deleted.")) return;
+      const response=await fetch("/api/playlists/"+encodeURIComponent(selectedPlaylistId),{
+        method:"DELETE",headers:{"Authorization":"Bearer "+adminPublishingKey}});
+      if (!response.ok) return showPlaylistStatus("Could not delete. Saved playlist is intact.");
+      selectedPlaylistId="";localStorage.removeItem(SELECTED_PLAYLIST_KEY);
+      els.playlistName.value="";playlist=[];savePlaylist();render();await refreshSavedMixes();
+      showPlaylistStatus("Playlist deleted. Music library and Radio unchanged.");
     });
-    els.playSavedOnRadio.addEventListener("click", async () => {
-      if (!selectedPlaylistId || !adminPublishingKey) return showPlaylistStatus("Select a saved mix and unlock publishing first.");
-      els.radioMixSelect.value = selectedPlaylistId;
-      const ok = await startSelectedRadioSource();
-      showPlaylistStatus(ok ? "Saved mix is broadcasting from the selected Radio source." : "Couldn't start that mix. Check the Radio Studio status.");
-      activateTab("radio");
+    function setPlaylistMusicSource(mode) {
+      const uploaded=mode==="upload";
+      els.playlistUploadedPanel.hidden=!uploaded;els.playlistLinksPanel.hidden=uploaded;
+      els.sourceUploaded.setAttribute("aria-pressed",String(uploaded));
+      els.sourceLinks.setAttribute("aria-pressed",String(!uploaded));
+      els.sourceUploaded.classList.toggle("primary",uploaded);
+      els.sourceLinks.classList.toggle("primary",!uploaded);
+      if(uploaded) loadAudioLibrary();
+    }
+    els.sourceUploaded.addEventListener("click",()=>setPlaylistMusicSource("upload"));
+    els.sourceLinks.addEventListener("click",()=>setPlaylistMusicSource("links"));
+    els.addLibraryTrack.addEventListener("click",()=>{
+      const song=audioLibrary.find(item=>item.id===els.playlistAudioSelect.value);
+      if(!song) return setStatus("Choose a song in Music library.");
+      if(playlist.length>=500) return setStatus("Maximum 500 songs per playlist.");
+      playlist.push(normalizeTrack(song));saveAndRender("Added "+song.title+" from Music library.");
     });
-
     async function loadAudioLibrary() {
       try {
         const response = await fetch("/api/audio-library", {cache: "no-store"});
         if (!response.ok) throw new Error(`Library returned HTTP ${response.status}`);
         const data = await response.json();
         audioLibrary = data.songs || [];
+        const prior = els.playlistAudioSelect.value;
+        els.playlistAudioSelect.replaceChildren(new Option(audioLibrary.length ? "Choose an uploaded song..." : "No songs uploaded yet",""));
+        audioLibrary.forEach(song=>els.playlistAudioSelect.add(new Option(song.title+(song.author?" · "+song.author:""),song.id)));
+        if(audioLibrary.some(song=>song.id===prior))els.playlistAudioSelect.value=prior;
         els.audioLibraryList.replaceChildren();
         if (!audioLibrary.length) {
           els.audioLibraryList.textContent = "No songs uploaded yet.";
@@ -1235,16 +1300,14 @@
       } catch (e) { els.autoRadioStatus.textContent = `Station command failed: ${e.message}`; return false; }
     }
     const radioSourceHelp = {
-      upload: "Uploaded music is scheduled on the server 24/7, even with the DJ browser closed. Choose a mix containing uploaded songs.",
-      youtube: "YouTube videos and playlists use the Mixtap DJ page. Leave this page open to send track changes; viewers may need to press Play.",
-      spotify: "Spotify uses official embeds. Leave the DJ page open; Spotify listeners may need to press Play and cannot be forced to the same timestamp.",
-      links: "YouTube and Spotify links can share a broadcast queue. Embeds still follow each provider's playback restrictions; leave the DJ page open."
+      upload: "Media library playlist: uploaded audio is scheduled on the server 24/7, even when the DJ page is closed.",
+      stream: "Stream playlist: YouTube/Spotify embeds need the DJ browser open for track changes. Listeners may need to press Play. Spotify timing cannot be synchronized precisely."
     };
     function updateRadioSourceHelp() {
       const mode = els.radioSource.value;
       els.radioSourceDescription.textContent = radioSourceHelp[mode] || radioSourceHelp.upload;
       els.stopAutoRadio.hidden = mode !== "upload";
-      els.startAutoRadio.textContent = mode === "upload" ? "▶ Start 24/7 Uploaded Radio" : "▶ Broadcast selected links";
+      els.startAutoRadio.textContent = mode === "upload" ? "▶ Start 24/7 Media library" : "▶ Broadcast Stream playlist";
     }
     els.radioSource.addEventListener("change", updateRadioSourceHelp);
     updateRadioSourceHelp();
@@ -1266,9 +1329,9 @@
       let tracks;
       try { tracks = await selectedRadioTracks(); }
       catch (error) { els.radioSourceStatus.textContent = error.message; return false; }
-      const sourceTracks = tracks.filter(track => mode === "links" ? ["youtube", "spotify"].includes(track.provider) : track.provider === mode);
+      const sourceTracks = tracks.filter(track => mode === "upload" ? track.provider === "upload" : ["youtube","spotify"].includes(track.provider));
       if (!sourceTracks.length) {
-        els.radioSourceStatus.textContent = `No ${mode === "links" ? "YouTube or Spotify links" : mode === "upload" ? "uploaded songs" : mode + " links"} found in that playlist. Add links on the Playlists tab, save the mix, or choose another playlist.`;
+        els.radioSourceStatus.textContent = mode === "upload" ? "No uploaded songs in this playlist. Add songs under Playlists > Music library." : "No YouTube or Spotify links in this playlist. Add them under Playlists > YouTube / Spotify.";
         return false;
       }
       if (mode === "upload") {
@@ -1281,7 +1344,7 @@
         return false;
       }
       const published = await broadcast({index: 0, playing: true, activeTrack: null, position: 0, startedAt: Date.now()}, {tracks: sourceTracks, dj: true});
-      if (published) els.radioSourceStatus.textContent = `${sourceTracks.length} ${mode === "links" ? "YouTube/Spotify" : mode === "youtube" ? "YouTube" : "Spotify"} item(s) on Radio. Keep this DJ page open. Listeners may need to press Play.`;
+      if (published) els.radioSourceStatus.textContent = `${sourceTracks.length} stream item(s) on Radio. Keep this DJ page open. Listeners may need to press Play.`;
       return Boolean(published);
     }
     els.startAutoRadio.addEventListener("click", startSelectedRadioSource);
@@ -1495,14 +1558,6 @@
     els.url.addEventListener("paste", () => window.setTimeout(previewMetadata, 80));
     els.url.addEventListener("keydown", (event) => {
       if (event.key === "Enter") addTrack();
-    });
-    els.loadDemo.addEventListener("click", () => {
-      playlist = demoTracks.map(normalizeTrack);
-      saveAndRender("Demo mix loaded.");
-    });
-    els.clearTracks.addEventListener("click", () => {
-      playlist = [];
-      saveAndRender("Playlist cleared.");
     });
     els.copyCode.addEventListener("click", () => copy(els.embedCode.value, "Embed code copied."));
     els.roomId.addEventListener("change", () => {

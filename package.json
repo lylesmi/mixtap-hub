@@ -1,12 +1,13 @@
 {
   "name": "retro96-mixtape-hub-ljas-selfhost",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "private": true,
   "type": "module",
   "description": "Self-hosted Retro 96 Mixtape Hub and floating widget.",
   "scripts": {
     "start": "node server.mjs",
-    "check": "node --check server.mjs && node --check public/widget.js"
+    "check": "node --check server.mjs && node --check public/widget.js && node --test test-ui-v124.mjs test-youtube-v124.mjs",
+    "test": "node test-hosted.mjs"
   },
   "engines": {
     "node": ">=18"
