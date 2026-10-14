@@ -1,5 +1,7 @@
 (function () {
   const DEFAULT_PLAYLIST = [];
+  // Inline pixel-art cassette icon avoids cross-origin image fetches under Retro Room COEP.
+  const CASSETTE_ICON = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 48\" width=\"48\" height=\"48\"><g shape-rendering=\"crispEdges\"><path fill=\"#000\" d=\"M5 5h38v39H5z\"/><path fill=\"#e3e8ec\" d=\"M6 4h36v36H6z\"/><path fill=\"#25394a\" d=\"M9 8h30v31H9z\"/><path fill=\"#778491\" d=\"M12 11h24v4H12z\"/><path fill=\"#b9c4c6\" d=\"M11 17h26v15H11z\"/><path fill=\"#0a1024\" d=\"M13 19h22v11H13z\"/><path fill=\"#9ba6a8\" d=\"M15 21h7v7h-7z M26 21h7v7h-7z\"/><path fill=\"#e6e6e2\" d=\"M17 23h3v3h-3z M28 23h3v3h-3z\"/><path fill=\"#101629\" d=\"M18 24h1v1h-1z M29 24h1v1h-1z\"/><path fill=\"#b6c1c2\" d=\"M20 29h8v2h-8z\"/><path fill=\"#674ee6\" d=\"M12 34h4v4h-4z\"/><path fill=\"#00ea99\" d=\"M17 35h3v3h-3z M21 33h3v5h-3z\"/><path fill=\"#eac933\" d=\"M25 32h3v6h-3z\"/><path fill=\"#f38137\" d=\"M29 35h3v3h-3z\"/><path fill=\"#fa386a\" d=\"M33 34h3v4h-3z\"/><path fill=\"#fff\" d=\"M5 5h2v36H5zM5 5h36v2H5z\"/><path fill=\"#656f7d\" d=\"M41 7h2v35h-2zM7 40h35v2H7z\"/></g></svg>";
 
   const state = {
     playlist: [],
@@ -385,25 +387,22 @@
         .r96-widget.r96-playing-media .r96-screen iframe { min-width: 200px; min-height: 200px; }
         .r96-dock-button {
           display: none;
-          width: 37px;
-          height: 37px;
-          border: 2px outset #fff;
-          border-right-color: #555;
-          border-bottom-color: #555;
-          border-radius: 0;
-          background: #c0c0c0;
-          color: #000080;
-          font-size: 20px;
+          width: 50px;
+          height: 50px;
+          border: 0;
+          padding: 0;
+          background: transparent;
           cursor: pointer;
-          box-shadow: 3px 3px 0 rgba(0,0,0,.5);
+          filter: drop-shadow(2px 2px 1px #0009);
         }
+        .r96-dock-button img {width:48px;height:48px;display:block;image-rendering:pixelated;}
         .r96-widget.r96-docked {
           position: fixed !important;
-          top: 10px !important;
-          left: 10px !important;
+          top: 12px !important;
+          left: 12px !important;
           right: auto !important;
           bottom: auto !important;
-          width: 37px !important;
+          width: 50px !important;
         }
         .r96-widget.r96-docked .r96-shell { display: none; }
         .r96-widget.r96-docked .r96-dock-button { display: block; }
@@ -417,7 +416,7 @@
           }
         }
       </style>
-      <button class="r96-dock-button" type="button" data-restore aria-label="Restore Retro 96 Radio" title="Restore Retro 96 Radio">♫</button>
+      <button class="r96-dock-button" type="button" data-restore aria-label="Restore Retro 96 Radio" title="Restore Retro 96 Radio"></button>
       <div class="r96-shell">
         <div class="r96-topbar" data-drag>
           <span class="r96-grip" aria-hidden="true"></span>
@@ -458,6 +457,13 @@
     `;
 
     document.body.appendChild(mount);
+    const cassetteImage=document.createElement('img');cassetteImage.alt='';
+    cassetteImage.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(CASSETTE_ICON);
+    mount.querySelector('[data-restore]').append(cassetteImage);
+    document.addEventListener('fullscreenchange',()=>{
+      // Move the minimized launcher into Full TV, without reparenting a playing media iframe.
+      if(state.minimized) (document.fullscreenElement || document.body).appendChild(mount);
+    });
     state.playlist = (options.playlist || DEFAULT_PLAYLIST).map(normalizeTrack).filter((track) => track.id || track.url);
     // An empty published room must not display a demo video that is not in the queue.
     state.index = Math.min(Math.max(Number(options.startIndex || 0), 0), Math.max(0, state.playlist.length - 1));
@@ -486,7 +492,7 @@
       }
     } catch (_) {}
     state.listening = true;
-    state.minimized = false;
+    state.minimized = Boolean(options.startMinimized);
     try { state.musicOnly = window.localStorage.getItem("retro96-music-only") === "true"; } catch (_) { state.musicOnly = false; }
     state.localStartedAt = 0;
     state.radioState = null;
@@ -1067,7 +1073,8 @@
     const room = script && script.dataset.room;
     const hubUrl = script && script.dataset.hubUrl;
     const sync = script && script.dataset.sync === "true";
-    createPlayer({ playlist, startIndex, room, hubUrl, sync });
+    const startMinimized=script?.dataset?.startMinimized === 'true';
+    createPlayer({ playlist, startIndex, room, hubUrl, sync, startMinimized });
   }
 
   function roomEndpoint() {
