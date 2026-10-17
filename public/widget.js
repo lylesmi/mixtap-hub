@@ -548,10 +548,23 @@
     });
   }
 
+  // The control indicates listening loudness, not a linear player gain.
+  // A 5% setting should be almost inaudible even on a loud recording.
+  function volumeGain(percentage) {
+    const level = Math.min(100, Math.max(0, Number(percentage) || 0)) / 100;
+    return Math.pow(level, 1.75);
+  }
+
+  function youtubeVolume(percentage) {
+    const gain = volumeGain(percentage);
+    // YouTube accepts integer levels only. Do not round 5% down to mute.
+    return gain === 0 ? 0 : Math.max(1, Math.round(gain * 100));
+  }
+
   function setLocalVolume() {
-    if (state.audioPlayer) state.audioPlayer.volume = state.volume / 100;
+    if (state.audioPlayer) state.audioPlayer.volume = volumeGain(state.volume);
     if (state.player?.contentWindow) {
-      state.player.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [state.volume]}), "https://www.youtube-nocookie.com");
+      state.player.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [youtubeVolume(state.volume)]}), "https://www.youtube-nocookie.com");
       if (state.volume === 0) state.player.contentWindow.postMessage(JSON.stringify({event: "command", func: "mute", args: []}), "https://www.youtube-nocookie.com");
       else state.player.contentWindow.postMessage(JSON.stringify({event: "command", func: "unMute", args: []}), "https://www.youtube-nocookie.com");
     }
@@ -696,7 +709,7 @@
     if (track.provider === "upload") {
       const audio = document.createElement("audio");
       audio.src = uploadedAudioUrl(track); audio.preload = "auto"; audio.controls = true; audio.autoplay = true;
-      audio.volume = state.volume / 100;
+      audio.volume = volumeGain(state.volume);
       audio.setAttribute("aria-label", `Audio player: ${track.title}`);
       audio.style.width = "100%";
       audio.style.minHeight = "54px";
@@ -797,6 +810,12 @@
           }
         }
       }
+      // The first command on iframe load can arrive before YouTube is ready.
+      // Reapply the chosen (quiet) volume once the player is ready or starts playback.
+      if (payload.event === "onReady" ||
+          (payload.event === "onStateChange" && Number(payload.info) === 1)) {
+        setLocalVolume();
+      }
       if (payload.event === "onStateChange" && Number(payload.info) === 0) {
         if (broadcastPlaying()) {
           state.radioEnded = true;
@@ -820,9 +839,9 @@
     window.addEventListener("message", state.ytMessageHandler);
     iframe.addEventListener("load", () => {
       if (!iframe.isConnected) return;
-      setLocalVolume();
       iframe.contentWindow?.postMessage(JSON.stringify({ event: "listening", id: iframe.id }),
         "https://www.youtube-nocookie.com");
+      setLocalVolume();
     });
   }
 
