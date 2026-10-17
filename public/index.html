@@ -383,6 +383,10 @@
     .audio-library-list { display:grid; gap:8px; margin:10px 0; max-height:250px; overflow:auto; }
     .audio-library-row { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:8px; border:1px solid var(--line); background:rgba(0,0,0,.2); }
     .audio-library-row span { flex:1 1 180px; min-width:0; overflow-wrap:anywhere; font-size:12px; }
+    .audio-library-rename { display:flex; flex:1 1 100%; gap:7px; flex-wrap:wrap; align-items:center; }
+    .audio-library-rename input { flex:1 1 210px; min-width:130px; max-width:100%; }
+    .audio-library-rename .btn { min-height:30px; }
+    .audio-library-row [hidden] { display:none !important; }
     .audio-library-row audio { height:30px; max-width:100%; width:180px; }
     .onair-frame audio { width:100%; margin:24px 0; }
 
@@ -569,6 +573,7 @@
           <div class="section-intro"><span class="section-eyebrow">YOUR COLLECTION</span><h2>Music library</h2><p>Upload audio files to the Mixtap server, then add them to a mix. Existing uploaded songs are preserved across app updates. <button class="text-link" data-open-tab="access" type="button">Unlock uploads ↗</button></p></div>
           <section class="panel studio-card"><div class="panel-body"><div class="upload-library">
 <h3>♫ Your music library</h3>
+<p class="note">Want to change how a song appears while playing? Click <strong>Rename</strong> beside it. Your new title is saved for playlists, Local and Radio. The original audio file stays untouched.</p>
 <div class="actions" style="align-items:center">
 <input accept=".mp3,.m4a,.ogg,.wav,audio/mpeg,audio/mp4,audio/ogg,audio/wav" aria-label="Choose music to upload" id="audioUploadFiles" multiple="" style="flex:1;min-width:180px" type="file"/>
 <button class="btn primary" id="uploadAudio" type="button">Upload songs</button>
@@ -1292,6 +1297,17 @@
         if (!response.ok) throw new Error(`Library returned HTTP ${response.status}`);
         const data = await response.json();
         audioLibrary = data.songs || [];
+        // Song titles are canonical on the server, even when a browser mix was
+        // created before a rename. Update the local editor without republishing.
+        const sourceNames = new Map(audioLibrary.map(song => [song.id, song]));
+        let labelsUpdated = false;
+        playlist = playlist.map(track => {
+          const current = track.provider === "upload" ? sourceNames.get(track.id) : null;
+          if (!current || (track.title === current.title && track.author === current.author)) return track;
+          labelsUpdated = true;
+          return { ...track, title: current.title, author: current.author };
+        });
+        if (labelsUpdated) { savePlaylist(); render(); }
         renderSongPicker();
         const prior = els.playlistAudioSelect.value;
         els.playlistAudioSelect.replaceChildren(new Option(audioLibrary.length ? "Choose an uploaded song..." : "No songs uploaded yet",""));
@@ -1308,7 +1324,56 @@
           const button = document.createElement("button"); button.className = "btn"; button.type = "button"; button.textContent = "+ Add to mix";
           button.addEventListener("click", () => { playlist.push(normalizeTrack(track)); saveAndRender(`Added ${track.title} to your mix.`); });
           const play = document.createElement("audio"); play.src = track.url; play.controls = true; play.preload = "none"; play.setAttribute("aria-label", `Preview ${track.title}`);
-          row.append(desc, play, button); els.audioLibraryList.append(row);
+          const rename = document.createElement("button");
+          rename.className = "btn"; rename.type = "button"; rename.textContent = "Rename";
+          rename.setAttribute("aria-label", `Rename ${track.title}`);
+          rename.addEventListener("click", () => {
+            if (!adminPublishingKey) {
+              els.audioUploadStatus.textContent = "Unlock Admin access to rename songs.";
+              return;
+            }
+            rename.disabled = true;
+            const editor = document.createElement("div"); editor.className = "audio-library-rename";
+            const titleInput = document.createElement("input"); titleInput.type = "text";
+            titleInput.maxLength = 140; titleInput.value = track.title;
+            titleInput.setAttribute("aria-label", `New title for ${track.title}`);
+            const save = document.createElement("button"); save.type = "button"; save.className = "btn primary"; save.textContent = "Save";
+            const cancel = document.createElement("button"); cancel.type = "button"; cancel.className = "btn"; cancel.textContent = "Cancel";
+            const close = () => { editor.remove(); rename.disabled = false; };
+            cancel.addEventListener("click", close);
+            const apply = async () => {
+              const newTitle = titleInput.value.trim();
+              if (!newTitle || newTitle.length > 140) {
+                els.audioUploadStatus.textContent = "Enter a title between 1 and 140 characters."; titleInput.focus(); return;
+              }
+              save.disabled = true;
+              try {
+                const response = await fetch(`/api/audio-library/${encodeURIComponent(track.id)}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json", "Authorization": `Bearer ${adminPublishingKey}` },
+                  body: JSON.stringify({ title: newTitle })
+                });
+                const result = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
+                els.audioUploadStatus.textContent = `Renamed to "${result.song.title}". Titles also update in saved playlists and Radio.`;
+                await loadAudioLibrary();
+                await checkSharedQueue();
+              } catch (error) {
+                els.audioUploadStatus.textContent = `Rename failed: ${error.message}`;
+                save.disabled = false;
+              }
+            };
+            save.addEventListener("click", apply);
+            titleInput.addEventListener("keydown", event => {
+              if (event.key === "Enter") { event.preventDefault(); apply(); }
+              if (event.key === "Escape") { event.preventDefault(); close(); }
+            });
+            editor.append(titleInput, save, cancel);
+            row.append(editor);
+            titleInput.focus(); titleInput.select();
+          });
+          row.append(desc, play, button, rename);
+          els.audioLibraryList.append(row);
         });
       } catch (error) { els.audioUploadStatus.textContent = `Library unavailable: ${error.message}`; }
     }
