@@ -667,7 +667,7 @@
     title.textContent = track.title;
     author.textContent = track.author || "";
     author.hidden = !track.author;
-    link.href = track.url || "#";
+    link.href = track.provider === "upload" ? uploadedAudioUrl(track) : (track.url || "#");
     link.textContent = "open original";
 
     if (!canRenderMedia()) {
