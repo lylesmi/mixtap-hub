@@ -502,7 +502,7 @@
 <h1>Mixtap <span class="brand-accent">96</span></h1>
 <p class="lede">Your music. Your station. One retro control desk.</p>
 </div>
-<div class="badge">Self-hosted ljas.ca · v1.2.9</div>
+<div class="badge">Self-hosted ljas.ca · v1.2.10</div>
 </header>
     <div class="app-overview-strip" role="status" aria-live="polite">
       <div class="broadcast-dot" aria-hidden="true"></div>
@@ -819,7 +819,15 @@
         radioSnapshot = data;
         if (data.autoDJ !== autoRadioOn) refreshAutoRadio();
         updateRadioReadout();
-        if (radioIsListening && !radioIsDJ) renderRadioPlayer();
+        if (radioIsListening && !radioIsDJ) {
+          if (!data.playing) {
+            // Never leave an old iframe or audio element playing after Stop.
+            onAirFrame = null;
+            onAirTrackId = "";
+            els.radioPlayerBox.replaceChildren();
+            els.radioPlayerBox.textContent = 'Radio is off air.';
+          } else renderRadioPlayer();
+        }
         if (!adminPublishingKey && playlist.length && !sharedTrackCount) {
           publishingFeedback(`${playlist.length} song(s) saved in this browser, but none published to Retro Room. Unlock, then click Publish queue.`, "locked");
         }
@@ -1469,7 +1477,7 @@
     }
     els.startAutoRadio.addEventListener("click", startSelectedRadioSource);
     els.stopAutoRadio.addEventListener("click", async () => {
-      if (await stationCommand("stop")) els.radioSourceStatus.textContent = "24/7 Uploaded Radio stopped. The live broadcast no longer advances automatically.";
+      if (await stationCommand("stop")) els.radioSourceStatus.textContent = "24/7 Radio stopped. The shared broadcast is off air.";
     });
 
     function liveTrack() {
