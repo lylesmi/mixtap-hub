@@ -13,7 +13,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const publicRoot = join(__dirname, "public");
 const dataDir = process.env.MIXTAP_DATA_DIR || process.env.DATA_DIR || join(__dirname, "data");
 const adminToken = process.env.MIXTAP_ADMIN_TOKEN || "";
-const APP_VERSION = "1.2.9";
+const APP_VERSION = "1.2.10";
 const MAX_PLAYLIST_TRACKS = 500;
 const publicOrigin = process.env.MIXTAP_PUBLIC_ORIGIN || "https://mixtap.ljas.ca";
 const dataFile = join(dataDir, "rooms.json");
@@ -378,7 +378,23 @@ async function handleAutoRadio(req, res, url) {
   catch { json(res, 400, { error: "Invalid JSON" }); return; }
   const room = validatedRoom(input.room);
   if (url.pathname === "/api/radio/stop") {
-    await (autoRadioWriteQueue = autoRadioWriteQueue.catch(() => {}).then(async () => { await atomicJson(radioFile, { active: false }); autoRadio = null; }));
+    try {
+      await (autoRadioWriteQueue = autoRadioWriteQueue.catch(() => {}).then(async () => {
+        // Stop the published room as well as the 24/7 scheduler. Otherwise
+        // GET /api/rooms/:room can fall back to an old playing DJ snapshot.
+        const stoppedRoom = autoRadio?.room || room;
+        const live = currentAutoRadio(stoppedRoom) || rooms[stoppedRoom] || emptyRoom();
+        const paused = { ...live, playing: false, startedAt: 0,
+          updatedAt: Date.now(), version: `stopped:${Date.now()}:${randomUUID()}`,
+          autoDJ: false };
+        await saveRoom(stoppedRoom, paused);
+        await atomicJson(radioFile, { active: false });
+        autoRadio = null;
+      }));
+    } catch (error) {
+      console.error('Failed to stop shared radio:', error);
+      json(res, 503, { error: 'Radio stop could not be saved; please retry.' }); return;
+    }
     json(res, 200, { active: false }); return;
   }
   if (url.pathname === "/api/radio/start") {
