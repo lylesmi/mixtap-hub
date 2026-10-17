@@ -844,10 +844,20 @@
   }
 
   function renderLabels(root) {
+    const track = currentTrack();
     updateControls(root);
-    root.querySelector("[data-marquee]").textContent = currentTrack()
-      ? `${canRenderMedia() ? "Playing" : "Ready"}: ${trackLabel(currentTrack())}`
+    root.querySelector("[data-marquee]").textContent = track
+      ? `${canRenderMedia() ? "Playing" : "Ready"}: ${trackLabel(track)}`
       : "♫ MIXTAP 96 · STANDBY · ADD YOUR FIRST TRACK ♫";
+    // A renamed uploaded song keeps its audio element playing. Only its
+    // displayed metadata and drawer labels need to change.
+    if (track) {
+      root.querySelector("[data-title]").textContent = track.title;
+      root.querySelector("[data-author]").textContent = track.author || "";
+      root.querySelector("[data-author]").hidden = !track.author;
+      root.querySelector("[data-link]").href = track.provider === "upload" ? uploadedAudioUrl(track) : (track.url || "#");
+    }
+    if (!broadcastPlaying()) renderLocalTrackList(root);
   }
 
   function choosePersonalTrack(root, index, startPlayback = false) {
@@ -1146,8 +1156,9 @@
     const available = roomState.playlist.map(normalizeTrack).filter(track => track.id || track.url);
     const previous = state.personalPlaylist;
     const key = track => `${track.provider}:${track.id}`;
-    const oldKeys = previous.map(key).join("|");
-    const newKeys = available.map(key).join("|");
+    const signature = track => `${key(track)}:${track.title}:${track.author}`;
+    const oldKeys = previous.map(signature).join("|");
+    const newKeys = available.map(signature).join("|");
     if (oldKeys === newKeys) return;
     const oldTrack = previous[state.personalIndex];
     const newIndex = oldTrack ? available.findIndex(track => key(track) === key(oldTrack)) : -1;
@@ -1159,7 +1170,8 @@
       state.playlist = available.map(track => ({...track}));
       state.index = state.personalIndex;
       if (!sameTrack) { state.playing = false; state.personalPlaying = false; state.desiredSeek = 0; state.localStartedAt = 0; }
-      renderTrack(root);
+      if (sameTrack) renderLabels(root);
+      else renderTrack(root);
     }
   }
 
@@ -1200,7 +1212,8 @@
         state.playlist = nextList.map(track => ({...track}));
         state.index = state.personalIndex;
         if (idx < 0) { state.playing = false; state.personalPlaying = false; state.desiredSeek = 0; state.localStartedAt = 0; }
-        renderTrack(root);
+        if (idx >= 0) renderLabels(root);
+        else renderTrack(root);
       }
     },
     next: function () {
