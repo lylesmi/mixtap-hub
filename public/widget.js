@@ -132,7 +132,8 @@
         .r96-shell {
           position: relative;
           overflow: hidden;
-          min-height: var(--r96-user-height, 0px);
+          min-height: 0;
+          height: auto;
           border: 2px solid #c0c0c0;
           border-right-color: #404040;
           border-bottom-color: #404040;
@@ -215,6 +216,7 @@
         .r96-volume { display:inline-flex; align-items:center; gap:5px; flex:1; min-width:0; }
         .r96-volume input { flex:1; width:1px; min-width:28px; accent-color:#000080; cursor:pointer; }
         .r96-volume output { font:10px Consolas,monospace; min-width:26px; text-align:right; }
+        .r96-track-drawer[hidden] { display: none !important; }
         .r96-track-drawer { margin:1px 4px 4px; border:2px inset #a0a0a0; background:#e4e4e4; color:#000; padding:4px; max-height:170px; overflow:auto; }
         .r96-track-drawer button { display:block; width:100%; text-align:left; border:0; background:transparent; color:#000; padding:4px 3px; font:11px "MS Sans Serif",Tahoma,sans-serif; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .r96-track-drawer button[aria-current="true"] { background:#000080; color:white; }
@@ -455,7 +457,7 @@
             <a class="r96-open" data-link target="_blank" rel="noopener">open original</a>
           </div>
         </div>
-        <button type="button" class="r96-resizer" data-resize role="slider" aria-orientation="horizontal" aria-label="Resize player by dragging the corner; arrow keys adjust width, up or down adjust height" title="Drag to resize width and height like Windows 3.1" aria-valuemin="242" aria-valuemax="560"></button>
+        <button type="button" class="r96-resizer" data-resize role="slider" aria-orientation="horizontal" aria-label="Resize player width by dragging the corner; arrow keys adjust width, up or down adjust height" title="Drag to resize width and height like Windows 3.1" aria-valuemin="242" aria-valuemax="560"></button>
       </div>
     `;
 
@@ -486,13 +488,11 @@
       : state.sync && readModePreference() !== "personal" ? "radio" : "personal";
     try {
       const savedWidth = Number(window.localStorage.getItem("retro96-widget-width"));
-      const savedHeight = Number(window.localStorage.getItem("retro96-widget-height"));
+      // Height follows content automatically; only an optional manual width is persisted.
       if (Number.isFinite(savedWidth) && savedWidth >= 242) {
         mount.style.setProperty("--r96-user-width", `${Math.min(savedWidth, 560)}px`);
       }
-      if (Number.isFinite(savedHeight) && savedHeight >= 230) {
-        mount.style.setProperty("--r96-user-height", `${Math.min(savedHeight, 760)}px`);
-      }
+
     } catch (_) {}
     state.listening = true;
     state.minimized = Boolean(options.startMinimized);
@@ -630,6 +630,14 @@
     state.audioPlayer = null;
   }
 
+  function uploadedAudioUrl(track) {
+    // The widget runs on retro.ljas.ca but audio lives on mixtap.ljas.ca.
+    // Root-relative /api/audio URLs must resolve against the Mixtap hub, not the host page.
+    const base = state.hubUrl || window.location.origin;
+    try { return new URL(String(track.url || ""), base.replace(/\/+$/, "") + "/").href; }
+    catch (_) { return ""; }
+  }
+
   function renderTrack(root) {
     const track = currentTrack();
     const screen = root.querySelector("[data-screen]");
@@ -687,7 +695,7 @@
 
     if (track.provider === "upload") {
       const audio = document.createElement("audio");
-      audio.src = track.url; audio.preload = "auto"; audio.controls = true; audio.autoplay = true;
+      audio.src = uploadedAudioUrl(track); audio.preload = "auto"; audio.controls = true; audio.autoplay = true;
       audio.volume = state.volume / 100;
       audio.setAttribute("aria-label", `Audio player: ${track.title}`);
       audio.style.width = "100%";
@@ -700,6 +708,7 @@
           root.querySelector("[data-status]").textContent = "Press play on the audio controls to start listening";
         });
       });
+      audio.addEventListener("error", () => { root.querySelector("[data-status]").textContent = "Audio unavailable. Check the song on Mixtap."; });
       audio.addEventListener("ended", () => { if (!broadcastPlaying()) next(root); });
       screen.appendChild(audio);
       state.audioPlayer = audio;
@@ -942,8 +951,14 @@
     if (!shouldDock && state.savedPosition) {
       Object.assign(root.style, state.savedPosition);
     }
-    if (currentTrack()?.provider === "upload" && state.audioPlayer) updateControls(root);
-    else renderTrack(root);
+    if (currentTrack()?.provider === "upload" && state.audioPlayer) {
+      updateControls(root);
+      if (!shouldDock && canRenderMedia() && state.audioPlayer.paused) {
+        state.audioPlayer.play().catch(() => {
+          root.querySelector("[data-status]").textContent = "Press Play to hear the radio.";
+        });
+      }
+    } else renderTrack(root);
     if (!shouldDock) root.querySelector("[data-close]").focus();
   }
 
@@ -975,10 +990,7 @@
       tab.textContent = expanded ? "▤ TRACK LIST ▴" : "▤ TRACK LIST ▾";
       updateControls(root);
     });
-    root.querySelector("[data-minimize]").addEventListener("click", () => {
-      state.compact = !state.compact;
-      root.classList.toggle("r96-compact", state.compact);
-    });
+    root.querySelector("[data-minimize]").addEventListener("click", () => toggleDock(root, true));
     root.querySelector("[data-close]").addEventListener("click", () => toggleDock(root, true));
     root.querySelector("[data-restore]").addEventListener("click", () => toggleDock(root, false));
   }
@@ -1019,7 +1031,7 @@
 
   function makeResizable(root) {
     const grip = root.querySelector("[data-resize]");
-    let initialX = 0, initialY = 0, initialWidth = 264, initialHeight = 250, resizing = false;
+    let initialX = 0, initialWidth = 264, resizing = false;
     function maxAllowed() {
       const parent = root.closest(".preview-shell");
       const parentLimit = parent ? parent.clientWidth - 24 : window.innerWidth - 24;
@@ -1031,37 +1043,23 @@
       grip.setAttribute("aria-valuenow", String(clamped));
       if (persist) { try { window.localStorage.setItem("retro96-widget-width", String(clamped)); } catch (_) {} }
     }
-    function setHeight(height) {
-      const shell = root.querySelector(".r96-shell");
-      const inlineMinHeight = shell.style.minHeight;
-      shell.style.minHeight = "0px";
-      const natural = shell.scrollHeight;
-      shell.style.minHeight = inlineMinHeight;
-      const clamped = Math.round(Math.max(natural, Math.min(760, height)));
-      root.style.setProperty("--r96-user-height", `${clamped}px`);
-      try { window.localStorage.setItem("retro96-widget-height", String(clamped)); } catch (_) {}
-    }
     grip.addEventListener("pointerdown", event => {
       if (root.classList.contains("r96-docked")) return;
       event.preventDefault(); event.stopPropagation();
-      resizing = true; initialX = event.clientX; initialY = event.clientY;
+      resizing = true; initialX = event.clientX;
       initialWidth = root.getBoundingClientRect().width;
-      initialHeight = root.querySelector(".r96-shell").getBoundingClientRect().height;
       grip.setPointerCapture(event.pointerId);
     });
     grip.addEventListener("pointermove", event => {
       if (!resizing) return;
       setWidth(initialWidth + event.clientX - initialX);
-      setHeight(initialHeight + event.clientY - initialY);
     });
     grip.addEventListener("pointerup", () => { resizing = false; });
     grip.addEventListener("pointercancel", () => { resizing = false; });
     grip.addEventListener("keydown", event => {
-      if (!["ArrowRight", "ArrowLeft", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+      if (!["ArrowRight", "ArrowLeft"].includes(event.key)) return;
       event.preventDefault();
-      if (event.key === "ArrowRight" || event.key === "ArrowLeft")
-        setWidth(root.getBoundingClientRect().width + (event.key === "ArrowRight" ? 16 : -16));
-      else setHeight(root.querySelector(".r96-shell").getBoundingClientRect().height + (event.key === "ArrowDown" ? 16 : -16));
+      setWidth(root.getBoundingClientRect().width + (event.key === "ArrowRight" ? 16 : -16));
     });
     grip.setAttribute("aria-valuenow", String(Math.round(root.getBoundingClientRect().width)));
     // A persisted width from another website may exceed this page's preview rail.
