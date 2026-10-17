@@ -33,6 +33,7 @@ let savedPlaylists = {};
 let playlistWriteQueue = Promise.resolve();
 let writeQueue = Promise.resolve();
 let audioLibrary = {};
+let audioMetadataRevision = 0;
 let autoRadio = null;
 let libraryWriteQueue = Promise.resolve();
 let autoRadioWriteQueue = Promise.resolve();
@@ -128,7 +129,7 @@ async function handlePlaylists(req, res, url) {
     if (!id) {
       json(res, 200, { playlists: Object.values(savedPlaylists).map(({ id, name, updatedAt, tracks }) => ({ id, name, updatedAt, count: tracks.length,
         type: tracks.length === 0 ? "Empty" : tracks.every(t=>t.provider==="upload") ? "Music library" : tracks.every(t=>["youtube","spotify"].includes(t.provider)) ? "Stream" : "Mixed" })) });
-    } else if (savedPlaylists[id]) json(res, 200, savedPlaylists[id]);
+    } else if (savedPlaylists[id]) json(res, 200, { ...savedPlaylists[id], tracks: canonicalUploadedTracks(savedPlaylists[id].tracks) });
     else json(res, 404, { error: "Playlist not found" });
     return;
   }
@@ -138,7 +139,7 @@ async function handlePlaylists(req, res, url) {
     try { input = JSON.parse(await readBody(req) || "{}"); } catch { json(res, 400, { error: "Invalid JSON" }); return; }
     const name = String(input.name || "").trim().slice(0, 70);
     if (!name || !Array.isArray(input.tracks) || input.tracks.length > MAX_PLAYLIST_TRACKS) { json(res, 400, { error: "Provide a playlist name and up to 500 tracks" }); return; }
-    const item = { id, name, tracks: safeTracks(input.tracks), updatedAt: Date.now() };
+    const item = { id, name, tracks: canonicalUploadedTracks(safeTracks(input.tracks)), updatedAt: Date.now() };
     try { await persistPlaylists(previous => ({ ...previous, [id]: item })); }
     catch { json(res, 503, { error: "Playlist storage failed; previous saved playlists remain intact" }); return; }
     json(res, 200, item);
@@ -150,7 +151,7 @@ async function handlePlaylists(req, res, url) {
     const name = String(input.name || "").trim().slice(0, 70);
     if (!name || !Array.isArray(input.tracks) || input.tracks.length > MAX_PLAYLIST_TRACKS) { json(res, 400, { error: "Provide a playlist name and up to 500 tracks" }); return; }
     const newId = randomUUID();
-    const item = { id: newId, name, tracks: safeTracks(input.tracks), updatedAt: Date.now() };
+    const item = { id: newId, name, tracks: canonicalUploadedTracks(safeTracks(input.tracks)), updatedAt: Date.now() };
     try { await persistPlaylists(previous => ({ ...previous, [newId]: item })); }
     catch { json(res, 503, { error: "Playlist storage failed; no changes were saved" }); return; }
     json(res, 201, item);
@@ -191,6 +192,32 @@ function fromAudioTrack(track) {
   const id = String(track?.id || "");
   return String(track?.provider || "") === "upload" ? audioLibrary[id] : null;
 }
+// The uploaded-song record is the source of truth for names, even when a
+// playlist or radio queue was saved before a song was renamed.
+function canonicalUploadedTrack(track) {
+  const item = fromAudioTrack(track);
+  return item ? { ...track, title: item.title, author: item.author } : track;
+}
+function canonicalUploadedTracks(tracks) {
+  return Array.isArray(tracks) ? tracks.map(canonicalUploadedTrack) : [];
+}
+function canonicalRoomSnapshot(snapshot) {
+  if (!snapshot) return snapshot;
+  let changed = false;
+  const update = (track) => {
+    if (!track) return track;
+    const next = canonicalUploadedTrack(track);
+    if (next.title !== track.title || next.author !== track.author) changed = true;
+    return next;
+  };
+  const playlist = Array.isArray(snapshot.playlist) ? snapshot.playlist.map(update) : [];
+  const activeTrack = update(snapshot.activeTrack);
+  if (!changed) return snapshot;
+  return {
+    ...snapshot, playlist, activeTrack,
+    version: `${snapshot.version || "unknown"}:audio-titles:${audioMetadataRevision}`
+  };
+}
 function currentAutoRadio(room) {
   const station = autoRadio;
   if (!station?.active || station.room !== room) return null;
@@ -208,7 +235,7 @@ function currentAutoRadio(room) {
   const cycle = Math.floor(elapsed / total);
   return { playlist: tracks.map(audioRecord), activeTrack: audioRecord(tracks[index]),
     index, playing: true, position: remaining, startedAt: Date.now(),
-    updatedAt: Date.now(), version: `auto:${station.startedAt}:${cycle}:${index}`, autoDJ: true };
+    updatedAt: Date.now(), version: `auto:${station.startedAt}:${cycle}:${index}:meta${audioMetadataRevision}`, autoDJ: true };
 }
 function validatedRoom(input) {
   const room = String(input || "retro96").replace(/[^a-z0-9_-]/gi, "").slice(0, 80);
@@ -269,6 +296,35 @@ async function handleAudioLibrary(req, res, url) {
     return;
   }
   const match = /^\/api\/audio-library\/([a-f0-9-]{36})$/.exec(url.pathname);
+  if (match && req.method === "PATCH") {
+    const id = match[1];
+    if (!audioLibrary[id]) { json(res, 404, { error: "Song not found" }); return; }
+    let input;
+    try { input = JSON.parse(await readBody(req) || "{}"); }
+    catch { json(res, 400, { error: "Invalid JSON" }); return; }
+    if (typeof input.title !== "string" || !input.title.trim() ||
+        input.title.trim().length > 140 || /[\u0000-\u001f\u007f]/.test(input.title)) {
+      json(res, 400, { error: "Enter a title between 1 and 140 characters." }); return;
+    }
+    const title = input.title.trim();
+    try {
+      const updated = await (libraryWriteQueue = libraryWriteQueue.catch(() => {}).then(async () => {
+        if (!audioLibrary[id]) return null;
+        const item = { ...audioLibrary[id], title };
+        const next = { ...audioLibrary, [id]: item };
+        await atomicJson(libraryFile, next);
+        audioLibrary = next;
+        audioMetadataRevision++;
+        return item;
+      }));
+      if (!updated) { json(res, 404, { error: "Song not found" }); return; }
+      json(res, 200, { song: audioRecord(updated) });
+    } catch (error) {
+      console.error("Audio title update failed:", error);
+      json(res, 503, { error: "Could not save the new title. Existing title is unchanged." });
+    }
+    return;
+  }
   if (match && req.method === "DELETE") {
     const id = match[1]; const item = audioLibrary[id];
     if (!item) { json(res, 404, { error: "Song not found" }); return; }
@@ -638,7 +694,7 @@ async function handleRoom(req, res, url) {
     return true;
   }
   if (req.method === "GET") {
-    json(res, 200, currentAutoRadio(room) || rooms[room] || emptyRoom());
+    json(res, 200, canonicalRoomSnapshot(currentAutoRadio(room) || rooms[room] || emptyRoom()));
     return true;
   }
   if (req.method === "PUT") {
@@ -647,8 +703,8 @@ async function handleRoom(req, res, url) {
     try { incoming = JSON.parse(await readBody(req) || "{}"); }
     catch { return json(res, 400, { error: "Invalid JSON" }); }
     const payload = {
-      playlist: safeTracks(incoming.playlist),
-      activeTrack: incoming.activeTrack ? safeTracks([incoming.activeTrack])[0] : null,
+      playlist: canonicalUploadedTracks(safeTracks(incoming.playlist)),
+      activeTrack: incoming.activeTrack ? canonicalUploadedTrack(safeTracks([incoming.activeTrack])[0]) : null,
       index: Number(incoming.index || 0),
       playing: Boolean(incoming.playing),
       position: Number(incoming.position || 0),
