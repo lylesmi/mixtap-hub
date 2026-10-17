@@ -476,6 +476,15 @@
     .playlist-add-row { display:flex; gap:9px; flex-wrap:wrap; }
     .playlist-add-row select { flex:1 1 210px; min-width:0; }
     .playlist-type-note { color:#98ead5; font-size:12px; margin-bottom:10px; }
+    .playlist-song-picker { display:grid; gap:5px; padding:6px; max-height:300px; overflow-y:auto; border:1px solid #39566b; border-radius:7px; background:#0a1829; }
+    .playlist-song-row { display:flex; align-items:center; gap:10px; padding:8px 9px; border-radius:5px; cursor:pointer; color:#e5f3f8; font-size:12px; }
+    .playlist-song-row:hover, .playlist-song-row:focus-within { background:#18334a; }
+    .playlist-song-row input { width:17px; height:17px; flex:none; accent-color:#72e0c6; }
+    .playlist-song-row span { flex:1; min-width:0; overflow-wrap:anywhere; }
+    .playlist-batch-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .playlist-batch-bar strong { margin-right:auto; color:#e2f3ee; font-size:13px; }
+    .playlist-batch-bar button { padding:5px 9px; min-height:29px; }
+    .playlist-legacy-add[hidden] { display:none!important; }
     .playlist-save-footer { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px; padding-top:14px; margin-top:16px; border-top:1px solid #344961; }
     .playlist-save-footer span { color:#a6c0cd; font-size:12px; }
     .playlist-save-footer .btn { min-width:135px; }
@@ -521,24 +530,26 @@
           </div>
         </section>
         <section class="workspace-panel" id="tab-playlists" role="tabpanel" aria-labelledby="tab-button-playlists" hidden>
-<div class="section-intro"><span class="section-eyebrow">PLAYLIST EDITOR</span><h2>Playlists</h2><p>Choose a saved playlist or press + to start a new one. Your live Radio is unchanged until you broadcast a mix.</p></div>
+<div class="section-intro"><span class="section-eyebrow">PLAYLIST EDITOR</span><h2>Playlists</h2><p>Give your playlist a name, tick the songs you want and click Save playlist. You can also add YouTube or Spotify links.</p></div>
 <section class="panel studio-card"><div class="panel-body">
+<p class="note"><strong>1.</strong> Create a new playlist with ＋, or choose one to edit.</p>
 <div class="playlist-picker">
 <div class="field"><label for="savedPlaylistSelect">Playlist</label><select id="savedPlaylistSelect"><option value="">＋ New playlist</option></select></div>
 <button class="btn playlist-icon" id="newPlaylist" type="button" title="New playlist" aria-label="Create a new playlist">＋</button>
 <button class="btn playlist-icon" id="deleteSavedPlaylist" type="button" title="Delete saved playlist" aria-label="Delete selected saved playlist">⌫</button></div>
-<div class="field"><label for="playlistName">Playlist name</label><input id="playlistName" maxlength="70" placeholder="Friday night arcade"></div>
+<div class="field"><label for="playlistName">2. Playlist name</label><input id="playlistName" maxlength="70" placeholder="Friday night arcade"></div>
 <p class="note" id="playlistStatus" role="status">Select a playlist or start fresh. Unlock Admin access to save to Mixtap.</p>
 </div></section>
-<section class="panel studio-card"><h2>Add music</h2><div class="panel-body">
+<section class="panel studio-card"><h2>3. Pick songs</h2><div class="panel-body">
 <div class="playlist-source-switch" role="group" aria-label="Music source">
 <button class="btn primary" id="sourceUploaded" type="button" aria-pressed="true">♫ Music library</button>
 <button class="btn" id="sourceLinks" type="button" aria-pressed="false">▶ YouTube / Spotify</button></div>
 <div class="playlist-source-panel" id="playlistUploadedPanel">
-<label for="playlistAudioSelect">Choose from uploaded music</label>
-<div class="playlist-add-row"><select id="playlistAudioSelect"><option value="">Loading music library...</option></select>
-<button class="btn" id="addLibraryTrack" type="button">＋ Add song</button></div>
-<p class="note">Uploaded songs are labelled Music library. Use the Music library tab to upload more files.</p>
+<p class="note">Tick every song you want, then click <strong>Save playlist</strong> below. No need to add tracks one at a time.</p>
+<div class="playlist-batch-bar"><strong>Uploaded songs</strong><span class="note" id="selectedSongCount">0 selected</span><button class="btn" id="selectAllPlaylistSongs" type="button">All</button><button class="btn" id="clearPlaylistSongs" type="button">Clear</button></div>
+<div class="playlist-song-picker" id="playlistSongPicker" role="group" aria-label="Select uploaded songs for your playlist"></div>
+<div class="playlist-add-row playlist-legacy-add" hidden><label class="sr-only" for="playlistAudioSelect">Legacy track picker</label><select id="playlistAudioSelect"><option value="">Loading music library...</option></select><button class="btn" id="addLibraryTrack" type="button">＋ Add song</button></div>
+<p class="note">Need more files? Upload them under <button class="text-link" type="button" data-open-tab="library">Music library</button>.</p>
 </div>
 <div class="playlist-source-panel" id="playlistLinksPanel" hidden>
 <div class="form"><div class="field"><label for="provider">Source</label><select id="provider"><option value="auto">Auto detect</option><option value="youtube">YouTube</option><option value="spotify">Spotify</option></select></div>
@@ -549,9 +560,9 @@
 </div>
 <div class="status" id="status" aria-live="polite"></div>
 </div></section>
-<section class="panel studio-card"><h2>Playlist songs <span class="tiny-count" id="mixCountLabel">0 tracks</span></h2>
+<section class="panel studio-card"><h2>4. Review &amp; save <span class="tiny-count" id="mixCountLabel">0 tracks</span></h2>
 <div class="panel-body"><p class="playlist-type-note" id="mixTypeLabel">New playlist</p><div class="tracks" id="tracks"></div>
-<div class="playlist-save-footer"><span>Saving doesn't interrupt the live Radio.</span>
+<div class="playlist-save-footer"><span>Checked songs are included when you save. Live Radio won't change.</span>
 <button class="btn primary" id="saveNamedPlaylist" type="button">Save playlist</button></div></div></section>
 </section>
 <section class="workspace-panel" id="tab-library" role="tabpanel" aria-labelledby="tab-button-library" hidden>
@@ -569,26 +580,26 @@
 </div></div></section>
         </section>
         <section class="workspace-panel" id="tab-radio" role="tabpanel" aria-labelledby="tab-button-radio" hidden>
-          <div class="section-intro"><span class="section-eyebrow">MASTER BROADCAST</span><h2>Radio Studio</h2><p>Choose a music source and saved mix, then broadcast. DJ controls change what everyone hears; listening does not affect the station.</p></div>
+          <div class="section-intro"><span class="section-eyebrow">MASTER BROADCAST</span><h2>Radio Studio</h2><p><strong>Start broadcasting in three steps:</strong> 1. Choose Music library or Stream. 2. Choose a playlist. 3. Press Start Radio. To hear it yourself, press Listen live. <button class="text-link" data-open-tab="access" type="button">Unlock Admin access first ↗</button></p></div>
           <section class="panel radio-studio" id="radioStudio">
 <h2>📻 Radio Studio — On Air</h2>
 <div class="panel-body">
 <div class="radio-onair"><strong id="radioNowPlaying">Checking live broadcast...</strong><span id="radioOnAirStatus">The shared radio is independent of your local playlist.</span></div>
 <div class="onair-frame" id="radioPlayerBox"><div id="radioPlayerIdle">♫ Tune in to the live broadcast or press Play to start broadcasting your selected playlist.</div></div>
 <div class="auto-radio-box radio-source-box">
-<strong>Choose what plays on Radio</strong>
-<p class="note">Choose a playlist. Media library runs 24/7 from uploaded songs; Stream playlist uses YouTube and Spotify embeds.</p>
+<strong>Start a Radio broadcast</strong>
+<p class="note"><strong>1. Source:</strong> uploaded files can broadcast 24/7, while YouTube/Spotify streams need the DJ browser open. <strong>2. Playlist:</strong> pick what to play. <strong>3. Start:</strong> click the button below.</p>
 <div class="radio-source-grid">
-  <div class="field"><label for="radioSource">Radio music source</label>
+  <div class="field"><label for="radioSource">1. Music source</label>
     <select id="radioSource"><option value="upload">Media library playlist · 24/7</option><option value="stream">Stream playlist · YouTube / Spotify</option></select>
   </div>
-  <div class="field"><label for="radioMixSelect">Choose a playlist to broadcast</label>
+  <div class="field"><label for="radioMixSelect">2. Playlist</label>
     <select id="radioMixSelect"><option value="current">Current editor mix</option></select>
   </div>
 </div>
 <div class="radio-source-description note" id="radioSourceDescription">Uploaded songs run 24/7 on your server, even after you close this tab.</div>
-<div class="actions"><button class="btn primary" id="startAutoRadio" type="button">▶ Start selected Radio source</button><button class="btn" id="stopAutoRadio" type="button">■ Stop 24/7 Radio</button></div>
-<p class="note" id="radioSourceStatus" role="status">Choose a source and playlist, then start Radio.</p>
+<div class="actions"><button class="btn primary" id="startAutoRadio" type="button">▶ Start Radio</button><button class="btn" id="stopAutoRadio" type="button">■ Stop 24/7 Radio</button></div>
+<p class="note" id="radioSourceStatus" role="status">Choose a source and playlist, then click Start Radio.</p>
 <p class="note" id="autoRadioStatus" role="status">Checking station...</p>
 </div>
 <div class="actions"><button class="btn" id="radioListen" type="button">♫ Listen live</button><button class="btn" id="radioStopListening" type="button">Stop listening locally</button></div>
@@ -730,6 +741,10 @@
       playlistUploadedPanel: document.querySelector("#playlistUploadedPanel"),
       playlistLinksPanel: document.querySelector("#playlistLinksPanel"),
       playlistAudioSelect: document.querySelector("#playlistAudioSelect"),
+      playlistSongPicker: document.querySelector("#playlistSongPicker"),
+      selectedSongCount: document.querySelector("#selectedSongCount"),
+      selectAllPlaylistSongs: document.querySelector("#selectAllPlaylistSongs"),
+      clearPlaylistSongs: document.querySelector("#clearPlaylistSongs"),
       addLibraryTrack: document.querySelector("#addLibraryTrack"),
       playlistName: document.querySelector("#playlistName"),
       playlistStatus: document.querySelector("#playlistStatus"),
@@ -1124,6 +1139,7 @@
 
     function render() {
       renderTracks();
+      syncSongPickerChecks();
       document.querySelector("#mixCountLabel").textContent = `${playlist.length} track${playlist.length === 1 ? "" : "s"}`;
       document.querySelector("#mixTypeLabel").textContent = "Playlist type: "+classifyPlaylist(playlist);
       renderEmbedCode();
@@ -1188,6 +1204,14 @@
     });
     els.newPlaylist.addEventListener("click",newPlaylist);
     async function saveNamedPlaylist() {
+      if (audioLibrary.length && els.playlistSongPicker.querySelectorAll("input[data-song-id]").length) {
+        const checked = new Set([...els.playlistSongPicker.querySelectorAll("input[data-song-id]:checked")].map(input => input.dataset.songId));
+        const onlineLinks = playlist.filter(track => track.provider !== "upload");
+        const selectedUploads = audioLibrary.filter(track => checked.has(track.id)).map(normalizeTrack);
+        if (onlineLinks.length + selectedUploads.length > 500) return showPlaylistStatus("A playlist can contain up to 500 songs.");
+        playlist = [...selectedUploads, ...onlineLinks];
+        savePlaylist(); render();
+      }
       const name = els.playlistName.value.trim();
       if (!name) return showPlaylistStatus("Enter a playlist name first.");
       if (!adminPublishingKey) return showPlaylistStatus("Unlock Admin access before saving.");
@@ -1232,12 +1256,43 @@
       if(playlist.length>=500) return setStatus("Maximum 500 songs per playlist.");
       playlist.push(normalizeTrack(song));saveAndRender("Added "+song.title+" from Music library.");
     });
+    function selectedSongCount() {
+      const checked = els.playlistSongPicker.querySelectorAll("input[data-song-id]:checked").length;
+      els.selectedSongCount.textContent = `${checked} selected`;
+    }
+    function syncSongPickerChecks() {
+      if (!els.playlistSongPicker) return;
+      const included = new Set(playlist.filter(track => track.provider === "upload").map(track => track.id));
+      els.playlistSongPicker.querySelectorAll("input[data-song-id]").forEach(input => { input.checked = included.has(input.dataset.songId); });
+      selectedSongCount();
+    }
+    function renderSongPicker() {
+      els.playlistSongPicker.replaceChildren();
+      for (const song of audioLibrary) {
+        const row = document.createElement("label"); row.className = "playlist-song-row";
+        const input = document.createElement("input"); input.type = "checkbox"; input.dataset.songId = song.id;
+        const label = document.createElement("span"); label.textContent = song.title + (song.author ? ` · ${song.author}` : "");
+        input.addEventListener("change", selectedSongCount);
+        row.append(input, label); els.playlistSongPicker.append(row);
+      }
+      if (!audioLibrary.length) els.playlistSongPicker.textContent = "No uploaded songs yet. Add them in Music library.";
+      syncSongPickerChecks();
+    }
+    els.selectAllPlaylistSongs.addEventListener("click", () => {
+      els.playlistSongPicker.querySelectorAll("input[data-song-id]").forEach(input => { input.checked = true; });
+      selectedSongCount();
+    });
+    els.clearPlaylistSongs.addEventListener("click", () => {
+      els.playlistSongPicker.querySelectorAll("input[data-song-id]").forEach(input => { input.checked = false; });
+      selectedSongCount();
+    });
     async function loadAudioLibrary() {
       try {
         const response = await fetch("/api/audio-library", {cache: "no-store"});
         if (!response.ok) throw new Error(`Library returned HTTP ${response.status}`);
         const data = await response.json();
         audioLibrary = data.songs || [];
+        renderSongPicker();
         const prior = els.playlistAudioSelect.value;
         els.playlistAudioSelect.replaceChildren(new Option(audioLibrary.length ? "Choose an uploaded song..." : "No songs uploaded yet",""));
         audioLibrary.forEach(song=>els.playlistAudioSelect.add(new Option(song.title+(song.author?" · "+song.author:""),song.id)));
@@ -1307,7 +1362,7 @@
       const mode = els.radioSource.value;
       els.radioSourceDescription.textContent = radioSourceHelp[mode] || radioSourceHelp.upload;
       els.stopAutoRadio.hidden = mode !== "upload";
-      els.startAutoRadio.textContent = mode === "upload" ? "▶ Start 24/7 Media library" : "▶ Broadcast Stream playlist";
+      els.startAutoRadio.textContent = mode === "upload" ? "▶ Start Radio 24/7" : "▶ Start Stream Radio";
     }
     els.radioSource.addEventListener("change", updateRadioSourceHelp);
     updateRadioSourceHelp();
