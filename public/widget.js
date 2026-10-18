@@ -17,6 +17,9 @@
     sync: false,
     version: "",
     pollTimer: 0,
+    liveEvents: null,
+    latestStopVersion: '',
+    latestStopUpdatedAt: 0,
     desiredSeek: 0,
     mode: "personal",
     listening: true,
@@ -637,6 +640,12 @@
       window.removeEventListener("message", state.ytMessageHandler);
       state.ytMessageHandler = null;
     }
+    // Explicitly stop detached HTMLAudio and remote media embeds.
+    if (state.audioPlayer) {
+      try { state.audioPlayer.pause(); state.audioPlayer.removeAttribute('src'); state.audioPlayer.load(); } catch (_) {}
+    }
+    if (state.player) { try { state.player.src = 'about:blank'; } catch (_) {} }
+    if (state.spotifyFrame) { try { state.spotifyFrame.src = 'about:blank'; } catch (_) {} }
     root.querySelector("[data-screen]").replaceChildren();
     state.player = null;
     state.spotifyFrame = null;
@@ -716,6 +725,8 @@
       audio.style.margin = "18px 0";
       const seek = broadcastPlaying() && state.radioState ? calculateSeek(state.radioState) : currentPersonalSeek();
       audio.addEventListener("loadedmetadata", () => {
+        // Old media must never resume after the server has stopped the station.
+        if (state.audioPlayer !== audio || !audio.isConnected || !canRenderMedia()) return;
         if (Number.isFinite(seek)) audio.currentTime = Math.min(Math.max(0, seek), Math.max(0, audio.duration - .15));
         audio.play().catch(() => {
           root.querySelector("[data-status]").textContent = "Press play on the audio controls to start listening";
@@ -1117,12 +1128,51 @@
   function startRoomSync(root) {
     if (!state.sync) return;
     window.clearInterval(state.pollTimer);
+    state.liveEvents?.close();
+    state.liveEvents = null;
     fetchRoom(root);
-    state.pollTimer = window.setInterval(() => {
-      // No background requests from a widget that has been removed by its host.
-      if (!root.isConnected) { window.clearInterval(state.pollTimer); return; }
+    // Live events eliminate the old 2.5-second stop delay; polling is fallback.
+    if (typeof window.EventSource === 'function') {
+      try {
+        const live = new window.EventSource(`${roomEndpoint()}/events`);
+        state.liveEvents = live;
+        live.addEventListener('room',(event)=>{
+          if (!root.isConnected) { live.close(); if(state.liveEvents===live)state.liveEvents=null; return; }
+          try {
+            const update=JSON.parse(event.data);
+            if(update.kind==='stop')applyMasterStop(root,update.roomState);
+            else if(update.roomState)applyRoomState(root,update.roomState);
+            state.radioConnection='connected';
+          } catch (_) {}
+        });
+      } catch (_) { /* polling continues */ }
+    }
+    state.pollTimer=window.setInterval(()=>{
+      if(!root.isConnected) {
+        window.clearInterval(state.pollTimer);
+        state.liveEvents?.close(); state.liveEvents=null;
+        return;
+      }
       fetchRoom(root);
-    }, 2500);
+    },2500);
+  }
+
+  function applyMasterStop(root,snapshot) {
+    if(!snapshot || snapshot.playing || !String(snapshot.version||'').startsWith('stopped:'))return;
+    if(state.latestStopVersion!==snapshot.version) {
+      state.latestStopVersion=snapshot.version;
+      state.latestStopUpdatedAt=Number(snapshot.updatedAt)||Date.now();
+      state.playing=false;
+      state.personalPlaying=false;
+      state.radioLocalPlaying=false;
+      state.localStartedAt=0;
+      state.radioLocalStartedAt=0;
+      state.radioLocalSeek=0;
+      state.radioEnded=false;
+      clearProviderPlayer(root);
+    }
+    applyRoomState(root,snapshot);
+    updateControls(root);
   }
 
   async function fetchRoom(root) {
@@ -1134,7 +1184,8 @@
         state.radioConnection = "connected";
         updateControls(root);
       }
-      applyRoomState(root, roomState);
+      if(String(roomState.version||'').startsWith('stopped:'))applyMasterStop(root,roomState);
+      else applyRoomState(root,roomState);
     } catch (_) {
       state.radioConnection = "offline";
       renderLabels(root);
@@ -1196,6 +1247,9 @@
 
   function applyRoomState(root, roomState) {
     if (!roomState || roomState.version === state.radioVersion) return;
+    // Do not revive a song from an HTTP poll started before the Stop event.
+    if(roomState.playing && state.latestStopUpdatedAt &&
+       Number(roomState.updatedAt||0)<state.latestStopUpdatedAt)return;
     const previousState = state.radioState;
     state.radioVersion = roomState.version || String(Date.now());
     state.radioState = roomState;
