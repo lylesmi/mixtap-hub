@@ -13,7 +13,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const publicRoot = join(__dirname, "public");
 const dataDir = process.env.MIXTAP_DATA_DIR || process.env.DATA_DIR || join(__dirname, "data");
 const adminToken = process.env.MIXTAP_ADMIN_TOKEN || "";
-const APP_VERSION = "1.2.10";
+const APP_VERSION = "1.2.11";
 const MAX_PLAYLIST_TRACKS = 500;
 const publicOrigin = process.env.MIXTAP_PUBLIC_ORIGIN || "https://mixtap.ljas.ca";
 const dataFile = join(dataDir, "rooms.json");
@@ -37,6 +37,37 @@ let audioMetadataRevision = 0;
 let autoRadio = null;
 let libraryWriteQueue = Promise.resolve();
 let autoRadioWriteQueue = Promise.resolve();
+// Room state is already public through GET. Publishers alone may change it.
+const roomSubscribers = new Map();
+function notifyRoom(room, kind, snapshot) {
+  const clients = roomSubscribers.get(room);
+  if (!clients) return;
+  const message = `event: room\ndata: ${JSON.stringify({kind,roomState:canonicalRoomSnapshot(snapshot)})}\n\n`;
+  for (const res of clients) {
+    if (res.destroyed || res.writableEnded) { clients.delete(res); continue; }
+    try { res.write(message); } catch { clients.delete(res); }
+  }
+  if (!clients.size) roomSubscribers.delete(room);
+}
+function watchRoom(req,res,room) {
+  res.writeHead(200,{
+    ...headers('text/event-stream; charset=utf-8'),
+    'Cache-Control':'no-store, no-transform',
+    'Connection':'keep-alive',
+    'X-Accel-Buffering':'no',
+    'Content-Encoding':'identity'
+  });
+  res.write(': Mixtap live room stream\n\n');
+  let clients=roomSubscribers.get(room);
+  if (!clients) { clients=new Set(); roomSubscribers.set(room,clients); }
+  clients.add(res);
+  const snapshot=canonicalRoomSnapshot(currentAutoRadio(room)||rooms[room]||emptyRoom());
+  res.write(`event: room\ndata: ${JSON.stringify({kind:snapshot?.version?.startsWith('stopped:')?'stop':'snapshot',roomState:snapshot})}\n\n`);
+  const heartbeat=setInterval(()=>{if(!res.destroyed&&!res.writableEnded)res.write(': alive\n\n');},15000);
+  const cleanup=()=>{clearInterval(heartbeat);clients.delete(res);if(!clients.size)roomSubscribers.delete(room);};
+  // Request 'close' can also mean the GET headers completed; only watch response.
+  res.on('close',cleanup);
+}
 let currentUploads = 0;
 
 const types = {
@@ -390,6 +421,7 @@ async function handleAutoRadio(req, res, url) {
         await saveRoom(stoppedRoom, paused);
         await atomicJson(radioFile, { active: false });
         autoRadio = null;
+        notifyRoom(stoppedRoom,'stop',paused);
       }));
     } catch (error) {
       console.error('Failed to stop shared radio:', error);
@@ -407,7 +439,10 @@ async function handleAutoRadio(req, res, url) {
       catch { json(res, 409, { error: `Song file missing: ${audioLibrary[id].title}` }); return; }
     }
     const station = { active: true, room, trackIds: ids, startedAt: Date.now() };
-    await (autoRadioWriteQueue = autoRadioWriteQueue.catch(() => {}).then(async () => { await atomicJson(radioFile, station); autoRadio = station; }));
+    await (autoRadioWriteQueue = autoRadioWriteQueue.catch(() => {}).then(async () => {
+      await atomicJson(radioFile, station); autoRadio = station;
+      notifyRoom(room,'snapshot',currentAutoRadio(room));
+    }));
     json(res, 200, { active: true, room, now: currentAutoRadio(room) }); return;
   }
   json(res, 404, { error: "Unknown radio command" });
@@ -734,6 +769,7 @@ async function handleRoom(req, res, url) {
       json(res, 503, { ok: false, error: "Could not save the shared room. No playlist changes were published. Check Mixtap storage." });
       return true;
     }
+    notifyRoom(room,'snapshot',payload);
     json(res, 200, payload);
     return true;
   }
@@ -795,6 +831,12 @@ createServer(async (req, res) => {
     if (url.pathname.startsWith("/api/audio/")) { await handleAudioStream(req, res, url); return; }
     if (url.pathname === "/api/radio" || url.pathname === "/api/radio/start" || url.pathname === "/api/radio/stop") {
       await handleAutoRadio(req, res, url); return;
+    }
+    const eventMatch = /^\/api\/rooms\/([a-zA-Z0-9_-]{1,80})\/events$/.exec(url.pathname);
+    if (eventMatch) {
+      if (req.method==='OPTIONS') { send(res,204,'','text/plain; charset=utf-8'); return; }
+      if (req.method!=='GET') { json(res,405,{error:'Method not allowed'}); return; }
+      watchRoom(req,res,eventMatch[1]); return;
     }
     if (url.pathname.startsWith("/api/rooms/")) {
       await handleRoom(req, res, url);
