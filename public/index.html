@@ -502,7 +502,7 @@
 <h1>Mixtap <span class="brand-accent">96</span></h1>
 <p class="lede">Your music. Your station. One retro control desk.</p>
 </div>
-<div class="badge">Self-hosted ljas.ca · v1.2.10</div>
+<div class="badge">Self-hosted ljas.ca · v1.2.11</div>
 </header>
     <div class="app-overview-strip" role="status" aria-live="polite">
       <div class="broadcast-dot" aria-hidden="true"></div>
@@ -817,6 +817,14 @@
         sharedTrackCount = Array.isArray(data.playlist) ? data.playlist.length : 0;
         updatePublishingCounts();
         radioSnapshot = data;
+        // Even an already-open DJ browser must stop its media on a station-wide Stop.
+        if (String(data.version||'').startsWith('stopped:')) {
+          radioIsDJ = false;
+          clearTimeout(liveReportTimer);
+          onAirFrame = null; onAirTrackId = '';
+          els.radioPlayerBox.replaceChildren();
+          els.radioPlayerBox.textContent = 'Radio is off air.';
+        }
         if (data.autoDJ !== autoRadioOn) refreshAutoRadio();
         updateRadioReadout();
         if (radioIsListening && !radioIsDJ) {
@@ -1420,6 +1428,13 @@
       try {
         const response = await fetch(`/api/radio/${command}`, {method:"POST",headers:{"Content-Type":"application/json", "Authorization":`Bearer ${adminPublishingKey}`},body:JSON.stringify({room:els.roomId.value.trim() || "retro96", ...payload})});
         const data = await response.json(); if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+        if (command === 'stop') {
+          radioIsDJ = false; radioIsListening = true;
+          clearTimeout(liveReportTimer);
+          onAirFrame = null; onAirTrackId = '';
+          els.radioPlayerBox.replaceChildren();
+          els.radioPlayerBox.textContent = 'Radio is off air.';
+        }
         await refreshAutoRadio(); await checkSharedQueue();
         radioIsDJ = false;
         if (command === "start") radioDjQueue = null;
